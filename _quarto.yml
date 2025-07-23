@@ -12,8 +12,8 @@ book:
     - part: OOP
       chapters:
        - "contents/oop/oop-basic.qmd" 
-       - "contents/oop/oop-relation-ex1.qmd"
        - "contents/oop/oop-relation.qmd"
+       - "contents/oop/oop-relation-ex1.qmd"
         
 bibliography: references.bib
 
