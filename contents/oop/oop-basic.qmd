@@ -120,3 +120,148 @@ class Dog extends Animal {
 This implementation demonstrates the **Template Method Pattern** implicitly - the superclass defines the structure and common behaviors, while subclasses can add their specific implementations and properties.
 
 The example usage in the `main()` function shows how both cats and dogs can use inherited methods (breathe, eat, run, sleep) while also having their unique behaviors (meow, bark) and properties.
+
+## Interface
+
+![Interface](../../img/oop/interface-airplane.png){#fig-interface-airplane width="80%"}
+
+::: {.callout-note appearance="simple" collapse="true"}
+### Example Dart
+
+```dart
+// Interface definition (abstract class in Dart)
+abstract class FlyingTransport {
+  // Interface method that must be implemented
+  void fly(String origin, String destination, int passengers);
+}
+
+// Helicopter class implementing FlyingTransport interface
+class Helicopter implements FlyingTransport {
+  String model;
+  int maxAltitude;
+  
+  Helicopter({required this.model, this.maxAltitude = 15000});
+  
+  @override
+  void fly(String origin, String destination, int passengers) {
+    print('Helicopter $model is flying from $origin to $destination');
+    print('Carrying $passengers passengers');
+    print('Flying at low altitude with vertical takeoff capability');
+  }
+}
+
+// Airplane class implementing FlyingTransport interface
+class Airplane implements FlyingTransport {
+  String airline;
+  String flightNumber;
+  
+  Airplane({required this.airline, required this.flightNumber});
+  
+  @override
+  void fly(String origin, String destination, int passengers) {
+    print('$airline Flight $flightNumber is flying from $origin to $destination');
+    print('Carrying $passengers passengers');
+    print('Cruising at high altitude on established flight path');
+  }
+}
+
+// DomesticatedGryphon class implementing FlyingTransport interface
+class DomesticatedGryphon implements FlyingTransport {
+  String name;
+  int wingspan;
+  
+  DomesticatedGryphon({required this.name, this.wingspan = 20});
+  
+  @override
+  void fly(String origin, String destination, int passengers) {
+    print('$name the Gryphon is flying from $origin to $destination');
+    print('Carrying $passengers brave passengers on its back');
+    print('Soaring majestically through the clouds');
+  }
+}
+
+// Airport class that uses FlyingTransport interface
+class Airport {
+  String name;
+  String code;
+  List<FlyingTransport> scheduledFlights = [];
+  
+  Airport({required this.name, required this.code});
+  
+  // Accept method that takes any FlyingTransport implementation
+  void accept(FlyingTransport vehicle) {
+    print('\n--- $name Airport ($code) ---');
+    print('Accepting flying transport for departure');
+    scheduledFlights.add(vehicle);
+    
+    // Airport can work with any FlyingTransport without knowing specific type
+    vehicle.fly(code, 'DEST', 50);
+    print('Transport successfully departed from $name\n');
+  }
+  
+  // Additional airport operations
+  void displaySchedule() {
+    print('Total scheduled flights: ${scheduledFlights.length}');
+  }
+}
+
+// Example usage demonstrating the pattern
+void main() {
+  // Create an airport
+  var jfkAirport = Airport(name: 'John F. Kennedy International', code: 'JFK');
+  
+  // Create different flying transports
+  var helicopter = Helicopter(model: 'Bell 429');
+  var airplane = Airplane(airline: 'Delta', flightNumber: 'DL123');
+  var gryphon = DomesticatedGryphon(name: 'Goldwing', wingspan: 25);
+  
+  // Airport accepts any FlyingTransport
+  // This demonstrates polymorphism through interfaces
+  jfkAirport.accept(helicopter);
+  jfkAirport.accept(airplane);
+  jfkAirport.accept(gryphon);
+  
+  // Display total scheduled flights
+  jfkAirport.displaySchedule();
+  
+  // Demonstrate that all types can be treated as FlyingTransport
+  print('\n--- Direct Interface Usage ---');
+  List<FlyingTransport> vehicles = [
+    Helicopter(model: 'Apache AH-64'),
+    Airplane(airline: 'United', flightNumber: 'UA456'),
+    DomesticatedGryphon(name: 'Stormfeather')
+  ];
+  
+  for (var vehicle in vehicles) {
+    vehicle.fly('LAX', 'ORD', 30);
+    print('');
+  }
+}
+```
+:::
+
+I'll implement this UML diagram in Dart, demonstrating the Interface pattern where multiple classes implement a common interface.I've implemented the UML diagram demonstrating the **Interface Pattern** with these key design elements:
+
+1. **Interface Definition**: 
+   - `FlyingTransport` is defined as an abstract class (Dart's way of creating interfaces)
+   - It declares the `fly()` method that all implementers must provide
+
+2. **Multiple Implementations**:
+   - `Helicopter`, `Airplane`, and `DomesticatedGryphon` all implement the `FlyingTransport` interface
+   - Each provides its own unique implementation of the `fly()` method
+
+3. **Dependency Inversion Principle**:
+   - The `Airport` class depends on the `FlyingTransport` interface, not concrete implementations
+   - The `accept()` method can work with any flying transport without knowing its specific type
+
+4. **Key Benefits Demonstrated**:
+   - **Polymorphism**: Different flying vehicles can be treated uniformly through the interface
+   - **Loose Coupling**: Airport doesn't need to know about specific vehicle types
+   - **Extensibility**: New flying transports can be added without modifying Airport
+
+5. **Design Pattern Usage**:
+   - This implements the **Strategy Pattern** where different flying behaviors are encapsulated
+   - Also demonstrates **Dependency Injection** as Airport accepts any FlyingTransport
+
+The example shows how an airport can accept helicopters, airplanes, and even mythical creatures like gryphons, as long as they implement the `FlyingTransport` interface. This makes the system flexible and extensible.
+
