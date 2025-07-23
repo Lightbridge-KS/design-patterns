@@ -1,0 +1,122 @@
+# OOP Basic
+
+## Inheritance
+
+![Basic Inheritance](../../img/oop/inherits-animal-cat-dog.png){#fig-inherits-animal-cat-dog width="80%"}
+
+::: {.callout-note appearance="minimal" collapse="true"}
+### Dart Example
+
+```dart
+// Abstract superclass Animal
+abstract class Animal {
+  // Properties
+  String name;
+  String sex;
+  int age;
+  double weight;
+  String color;
+
+  // Constructor
+  Animal({
+    required this.name,
+    required this.sex,
+    required this.age,
+    required this.weight,
+    required this.color,
+  });
+
+  // Methods
+  void breathe() {
+    print('$name is breathing');
+  }
+
+  void eat(String food) {
+    print('$name is eating $food');
+  }
+
+  void run(String destination) {
+    print('$name is running to $destination');
+  }
+
+  void sleep(int hours) {
+    print('$name is sleeping for $hours hours');
+  }
+}
+
+// Cat subclass extending Animal
+class Cat extends Animal {
+  // Cat-specific property
+  bool isNasty;
+
+  // Constructor
+  Cat({
+    required String name,
+    required String sex,
+    required int age,
+    required double weight,
+    required String color,
+    this.isNasty = false,
+  }) : super(
+          name: name,
+          sex: sex,
+          age: age,
+          weight: weight,
+          color: color,
+        );
+
+  // Cat-specific method
+  void meow() {
+    print('$name says: Meow!');
+  }
+}
+
+// Dog subclass extending Animal
+class Dog extends Animal {
+  // Dog-specific property
+  String bestFriend;
+
+  // Constructor
+  Dog({
+    required String name,
+    required String sex,
+    required int age,
+    required double weight,
+    required String color,
+    this.bestFriend = 'Human',
+  }) : super(
+          name: name,
+          sex: sex,
+          age: age,
+          weight: weight,
+          color: color,
+        );
+
+  // Dog-specific method
+  void bark() {
+    print('$name says: Woof!');
+  }
+}
+
+```
+
+:::
+
+1. **Inheritance Pattern**: The `Cat` and `Dog` classes inherit from the `Animal` superclass, demonstrating the "is-a" relationship.
+
+2. **Abstract Class**: I made `Animal` an abstract class since in the real world, you don't instantiate a generic "animal" - you create specific types like cats or dogs.
+
+3. **Key Implementation Details**:
+   - The superclass `Animal` contains shared properties (name, sex, age, weight, color) and methods (breathe, eat, run, sleep)
+   - Each subclass has its own specific properties: 
+     - `Cat` has `isNasty` (boolean)
+     - `Dog` has `bestFriend` (String, defaulting to "Human")
+   - Each subclass has its own specific methods:
+     - `Cat` has `meow()`
+     - `Dog` has `bark()`
+
+4. **Constructor Chaining**: Both subclasses use the `super` constructor to initialize inherited properties from the Animal class.
+
+This implementation demonstrates the **Template Method Pattern** implicitly - the superclass defines the structure and common behaviors, while subclasses can add their specific implementations and properties.
+
+The example usage in the `main()` function shows how both cats and dogs can use inherited methods (breathe, eat, run, sleep) while also having their unique behaviors (meow, bark) and properties.

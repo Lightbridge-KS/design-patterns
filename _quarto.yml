@@ -1,0 +1,23 @@
+project:
+  type: book
+
+book:
+  title: "Design Pattern"
+  author: "Kittipos Sirivongrungson"
+  repo-url: https://github.com/Lightbridge-KS/design-patterns
+  site-url: https://design-patterns-lightbridge.netlify.app
+  date: today
+  chapters:
+    - index.qmd
+    - part: OOP
+      chapters:
+       - "contents/oop/oop-basic.qmd" 
+        
+bibliography: references.bib
+
+format:
+  html:
+    theme:
+      - cosmo
+      - brand
+
