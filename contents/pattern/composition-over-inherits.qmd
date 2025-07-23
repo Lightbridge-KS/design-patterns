@@ -1,0 +1,271 @@
+# Composition over Inheritance
+
+I'll demonstrate why composition is superior to inheritance by implementing both approaches from the diagrams, showing how the Strategy Pattern solves the combinatorial explosion problem.This example perfectly demonstrates why **"Favor Composition over Inheritance"** is a fundamental design principle. Here's why:
+
+
+## Problems with Inheritance Approach:
+
+![Inheritance](../../img/pattern/Inheritance.png){#fig-inheritance width="80%"}
+
+::: {.callout-note appearance="simple" collapse="true"}
+### Example Dart
+
+```dart
+// ============================================
+// PROBLEM: Inheritance Approach (Combinatorial Explosion)
+// ============================================
+
+// Base class
+abstract class TransportInheritance {
+  void deliver(String destination, String cargo);
+}
+
+// First level: Cargo type
+abstract class Truck extends TransportInheritance {}
+abstract class Car extends TransportInheritance {}
+
+// Second level: Engine type (2 cargo × 2 engine = 4 classes)
+abstract class ElectricTruck extends Truck {}
+abstract class CombustionEngineTruck extends Truck {}
+abstract class ElectricCar extends Car {}
+abstract class CombustionEngineCar extends Car {}
+
+// Third level: Navigation type (4 × 2 navigation = 8 classes!)
+class AutopilotElectricTruck extends ElectricTruck {
+  @override
+  void deliver(String destination, String cargo) {
+    print('Autopilot Electric Truck delivering $cargo to $destination');
+  }
+}
+
+class AutopilotCombustionEngineTruck extends CombustionEngineTruck {
+  @override
+  void deliver(String destination, String cargo) {
+    print('Autopilot Combustion Truck delivering $cargo to $destination');
+  }
+}
+
+class AutopilotElectricCar extends ElectricCar {
+  @override
+  void deliver(String destination, String cargo) {
+    print('Autopilot Electric Car delivering $cargo to $destination');
+  }
+}
+
+class AutopilotCombustionEngineCar extends CombustionEngineCar {
+  @override
+  void deliver(String destination, String cargo) {
+    print('Autopilot Combustion Car delivering $cargo to $destination');
+  }
+}
+
+// ... And 4 more classes for manual driving!
+// Total: 8 classes for just 3 dimensions!
+```
+:::
+
+1. **Combinatorial Explosion**: 
+   - 2 cargo types × 2 engines × 2 drivers = 8 classes
+   - Adding just one more dimension (like transmission type) doubles it to 16 classes!
+
+2. **Rigid Structure**:
+   - Can't change behavior at runtime
+   - Each combination needs a new class
+   - Deep inheritance hierarchies become fragile
+
+3. **Violates DRY**:
+   - Similar code repeated across multiple classes
+   - Changes need to be made in multiple places
+
+## Benefits of Composition (Strategy Pattern):
+
+![Composition](../../img/pattern/Composition.png){#fig-composition width="80%"}
+
+::: {.callout-note appearance="simple" collapse="true"}
+### Example Dart
+
+```dart
+// ============================================
+// SOLUTION: Composition Approach (Strategy Pattern)
+// ============================================
+
+// Strategy Interfaces
+abstract class Engine {
+  void move();
+}
+
+abstract class Driver {
+  void navigate(String destination);
+}
+
+// Concrete Engine Strategies
+class CombustionEngine implements Engine {
+  @override
+  void move() {
+    print('Moving with combustion engine: vroom vroom!');
+  }
+}
+
+class ElectricEngine implements Engine {
+  @override
+  void move() {
+    print('Moving with electric engine: silent whoosh~');
+  }
+}
+
+// Concrete Driver Strategies
+class Human implements Driver {
+  @override
+  void navigate(String destination) {
+    print('Human driver navigating to $destination using GPS');
+  }
+}
+
+class Robot implements Driver {
+  @override
+  void navigate(String destination) {
+    print('Autopilot navigating to $destination using AI');
+  }
+}
+
+// Transport class using composition
+class Transport {
+  final String type; // "Truck" or "Car"
+  final Engine engine;
+  final Driver driver;
+  
+  Transport({
+    required this.type,
+    required this.engine,
+    required this.driver,
+  });
+  
+  void deliver(String destination, String cargo) {
+    print('\n--- $type Delivery ---');
+    print('Cargo: $cargo');
+    driver.navigate(destination);
+    engine.move();
+    print('Delivery complete!');
+  }
+}
+```
+:::
+
+1. **Linear Growth**:
+   - Only 2 + 2 + 2 = 6 classes instead of 8
+   - Adding new dimension adds classes, not multiplies them
+
+2. **Runtime Flexibility**:
+   - Can create any combination without new classes
+   - Can change behaviors dynamically
+
+3. **Better Design Principles**:
+   - **Single Responsibility**: Each class has one job
+   - **Open/Closed**: Add features without modifying existing code
+   - **Dependency Inversion**: Depend on abstractions (interfaces)
+
+4. **Easier Testing**:
+   - Can mock individual strategies
+   - Test each component in isolation
+
+5. **Real-world Modeling**:
+   - More accurately represents reality (a truck HAS an engine, not IS an engine)
+
+The Strategy Pattern shown here is just one example of composition. This principle applies broadly in software design, leading to more maintainable, flexible, and understandable code.
+
+## Usage Benefits
+
+```
+INHERITANCE HIERARCHY (Explodes quickly):
+                Transport
+                /        \
+            Truck        Car
+           /    \       /    \
+    Electric  Combustion  Electric  Combustion
+       |         |           |         |
+   Autopilot  Autopilot  Autopilot  Autopilot
+   Manual     Manual     Manual     Manual
+   
+   8 leaf classes for 3 dimensions!
+   
+COMPOSITION STRUCTURE (Scales linearly):
+   Transport
+   ├── engine: Engine ←── CombustionEngine
+   │                  ←── ElectricEngine
+   │                  ←── HydrogenEngine (easy to add!)
+   │
+   └── driver: Driver ←── Human
+                      ←── Robot  
+                      ←── RemoteDriver (easy to add!)
+                      
+   Only 6 classes total, infinite combinations!
+```
+
+**Example Code:** 
+
+```dart
+void main() {
+  print('=== INHERITANCE APPROACH PROBLEMS ===');
+  print('Problem 1: Combinatorial Explosion');
+  print('- 2 cargo types × 2 engines × 2 drivers = 8 classes needed!');
+  print('- Adding 1 new dimension (e.g., transmission) doubles classes to 16!');
+  
+  print('\nProblem 2: Rigid Structure');
+  var inheritanceTruck = AutopilotElectricTruck();
+  inheritanceTruck.deliver('Warehouse', 'Packages');
+  print('Cannot change engine or driver at runtime!');
+  
+  print('\n\n=== COMPOSITION APPROACH BENEFITS ===');
+  
+  // Create different combinations easily
+  var electricAutopilotTruck = Transport(
+    type: 'Truck',
+    engine: ElectricEngine(),
+    driver: Robot(),
+  );
+  
+  var combustionHumanCar = Transport(
+    type: 'Car',
+    engine: CombustionEngine(),
+    driver: Human(),
+  );
+  
+  electricAutopilotTruck.deliver('Distribution Center', 'Electronics');
+  combustionHumanCar.deliver('Customer House', 'Groceries');
+  
+  print('\n=== RUNTIME FLEXIBILITY ===');
+  // Can create any combination without new classes
+  var hybridVehicle = Transport(
+    type: 'Truck',
+    engine: ElectricEngine(),
+    driver: Human(),
+  );
+  hybridVehicle.deliver('Store', 'Mixed cargo');
+  
+  // Can even swap components (with a factory method)
+  print('\n=== EASY EXTENSION ===');
+  
+  // Adding new engine type - just one new class!
+  class HydrogenEngine implements Engine {
+    @override
+    void move() {
+      print('Moving with hydrogen fuel cell: eco-friendly!');
+    }
+  }
+  
+  // Adding new driver type - just one new class!
+  class RemoteDriver implements Driver {
+    @override
+    void navigate(String destination) {
+      print('Remote operator navigating to $destination via 5G');
+    }
+  }
+  
+  // Use immediately without touching existing code
+  var futuristicTruck = Transport(
+    type: 'Truck',
+    engine: HydrogenEngine(),
+    driver: RemoteDriver(),
+  );
+  futuristicTruck.deliver('Space Port', 'Satellites');
+```
