@@ -1,247 +1,224 @@
-# Relations
+# OOP Relation 
 
-## Dependency & Association
 
-::: {.callout-note appearance="simple" collapse="true"}
-### Example Dart
+## Summary of UML Relationships (Weakest to Strongest)
+
+![OOP Relations](../../img/oop/OOP-relation-summary.png){#fig-OOP-relation-summary width="80%"}
+
+### **Dependency** (Weakest) `A - - -> B`
+
 ```dart
-// Course class that Professor depends on
-class Course {
+// 1. DEPENDENCY (Weakest) - A uses B temporarily
+// Notation: A - - - -> B (dashed arrow)
+
+class PaymentProcessor {  // Class A
+  // No stored reference to EmailService
+  
+  void processPayment(double amount, EmailService emailer) {  // Class B as parameter
+    print('Processing payment of \$$amount');
+    // Temporary use of EmailService
+    emailer.sendConfirmation('Payment processed');
+    // EmailService reference is gone after method ends
+  }
+}
+```
+
+- **What**: A uses B temporarily
+- **How**: B appears in method parameters, return types, or local variables
+- **Coupling**: Very loose - A doesn't store B
+- **Example**: PaymentProcessor uses EmailService only during payment processing
+
+### **Association** `A ——> B`
+
+```dart
+// 2. ASSOCIATION - A has long-term reference to B
+// Notation: A ——> B (solid arrow)
+
+class Doctor {  // Class A
   String name;
-  String code;
-  List<String> topics;
+  List<Patient> patients = [];  // Stores references to B
   
-  Course({required this.name, required this.code, required this.topics});
+  Doctor({required this.name});
   
-  // Method that returns knowledge from the course
-  String getKnowledge() {
-    return 'Knowledge from $name: ${topics.join(', ')}';
+  void addPatient(Patient patient) {
+    patients.add(patient);
+    patient.doctors.add(this);  // Bidirectional
   }
 }
 
-// Student class that Professor is associated with
-class Student {
+class Patient {  // Class B
   String name;
-  int studentId;
-  List<String> learnedTopics = [];
+  List<Doctor> doctors = [];  // Can have multiple doctors
   
-  Student({required this.name, required this.studentId});
+  Patient({required this.name});
+}
+```
+
+- **What**: A has a long-term reference to B
+- **How**: B is stored as a field in A
+- **Coupling**: Moderate - both can exist independently
+- **Example**: Doctor has Patients (and Patients know their Doctors)
+
+### **Aggregation** `A ◇——> B`
+
+```dart
+// 3. AGGREGATION - A has B, but B can exist independently
+// Notation: A ◇——> B (hollow diamond)
+
+class Department {  // Class A
+  String name;
+  List<Employee> employees = [];  // Has employees but doesn't own them
   
-  // Method to remember what was taught
-  void remember(String knowledge) {
-    print('$name is learning: $knowledge');
-    learnedTopics.add(knowledge);
+  Department({required this.name});
+  
+  void addEmployee(Employee emp) {
+    employees.add(emp);
   }
   
-  // Method to show what student has learned
-  void showLearning() {
-    print('\n$name has learned:');
-    for (var topic in learnedTopics) {
-      print('  - $topic');
+  void removeEmployee(Employee emp) {
+    employees.remove(emp);
+    // Employee continues to exist
+  }
+}
+
+class Employee {  // Class B
+  String name;
+  String id;
+  
+  Employee({required this.name, required this.id});
+  // Can exist without department
+}
+
+```
+
+- **What**: A "has" B (whole-part relationship)
+- **How**: A contains B but doesn't control B's lifecycle
+- **Coupling**: Moderate - B can exist without A
+- **Example**: Department has Employees (but Employees can change departments)
+
+### **Composition** (Strongest "has-a") `A ◆——> B`
+
+```dart
+// 4. COMPOSITION (Strongest "has-a") - A owns B, B cannot exist without A
+// Notation: A ◆——> B (filled diamond)
+
+class House {  // Class A
+  String address;
+  List<Room> rooms = [];  // Owns rooms completely
+  
+  House({required this.address, required int numberOfRooms}) {
+    // Rooms are created by House
+    for (int i = 0; i < numberOfRooms; i++) {
+      rooms.add(Room(houseAddress: address, roomNumber: i + 1));
     }
   }
-}
-
-// Professor class showing both association and dependency
-class Professor {
-  String name;
-  String department;
   
-  // ASSOCIATION: Professor has a long-term relationship with students
-  // This is a "has-a" relationship - stored as a field
-  List<Student> students = [];
-  
-  Professor({required this.name, required this.department});
-  
-  // Method to add students (strengthens the association)
-  void addStudent(Student student) {
-    students.add(student);
-    print('$name now teaches ${student.name}');
-  }
-  
-  // DEPENDENCY: Professor uses Course temporarily in the teach method
-  // Course is not stored as a field, just used as a parameter
-  void teach(Course course) {
-    print('\nProfessor $name is teaching ${course.name}');
-    
-    // Professor depends on Course's getKnowledge() method
-    String knowledge = course.getKnowledge();
-    
-    // Teach all associated students
-    for (var student in students) {
-      student.remember(knowledge);
-    }
-  }
-  
-  // Another method showing dependency on Course
-  void prepareLesson(Course course) {
-    print('\nProfessor $name is preparing lesson for ${course.name}');
-    print('Topics to cover: ${course.topics.join(', ')}');
-    // Course is used temporarily, not stored
-  }
-  
-  // Method that doesn't need Course (showing Professor can exist without Course)
-  void holdOfficeHours() {
-    print('\nProfessor $name is holding office hours');
-    print('Available for ${students.length} students');
+  void demolish() {
+    print('House demolished - all rooms destroyed');
+    rooms.clear();  // Rooms cease to exist
   }
 }
 
-// Additional example showing different relationship types
-class University {
-  String name;
+class Room {  // Class B
+  final String houseAddress;  // Cannot change house
+  final int roomNumber;
   
-  // COMPOSITION: University owns departments (strong relationship)
-  List<Department> departments = [];
-  
-  University({required this.name});
-  
-  void addDepartment(String deptName) {
-    departments.add(Department(name: deptName, university: this));
-  }
+  Room({required this.houseAddress, required this.roomNumber});
+  // Cannot exist without House
 }
-
-class Department {
-  String name;
-  University university; // Back reference
-  
-  // AGGREGATION: Department has professors but doesn't own them
-  List<Professor> professors = [];
-  
-  Department({required this.name, required this.university});
-}
-
-// Example usage demonstrating the relationships
-void main() {
-  // Create professor
-  var profSmith = Professor(
-    name: 'Dr. Smith',
-    department: 'Computer Science'
-  );
-  
-  // Create students and establish ASSOCIATION
-  var alice = Student(name: 'Alice', studentId: 12345);
-  var bob = Student(name: 'Bob', studentId: 12346);
-  
-  profSmith.addStudent(alice);
-  profSmith.addStudent(bob);
-  
-  // Create courses (these will be used as DEPENDENCIES)
-  var oop = Course(
-    name: 'Object-Oriented Programming',
-    code: 'CS101',
-    topics: ['Classes', 'Inheritance', 'Polymorphism']
-  );
-  
-  var patterns = Course(
-    name: 'Design Patterns',
-    code: 'CS301',
-    topics: ['Singleton', 'Factory', 'Observer']
-  );
-  
-  // Professor teaches courses (DEPENDENCY in action)
-  profSmith.teach(oop);
-  profSmith.teach(patterns);
-  
-  // Professor can exist and function without courses
-  profSmith.holdOfficeHours();
-  
-  // Show what students learned
-  alice.showLearning();
-  bob.showLearning();
-  
-  // Demonstrate that Course objects can be created and destroyed
-  // without affecting Professor (loose coupling)
-  var tempCourse = Course(
-    name: 'Algorithms',
-    code: 'CS201',
-    topics: ['Sorting', 'Searching']
-  );
-  profSmith.prepareLesson(tempCourse);
-  // tempCourse can now go out of scope - Professor doesn't hold onto it
-}
-
-// UML Representation in comments:
-/*
-  Professor -------> Student      (Association: solid line with arrow)
-     |                            Professor "has" Students as a field
-     |
-     ┆ - - - - - -> Course       (Dependency: dashed line with arrow)
-                                 Professor "uses" Course in methods
-                                 
-  Key Differences:
-  1. Association (Professor -> Student):
-     - Long-term relationship
-     - Student is stored as a field in Professor
-     - Professor "has" Students
-     
-  2. Dependency (Professor --> Course):
-     - Temporary relationship
-     - Course is only used in method parameters
-     - Professor "uses" Course but doesn't store it
-     - Changes to Course interface affect Professor's methods
-*/
 ```
-:::
 
-I'll create a comprehensive example in Dart that demonstrates the difference between dependency and association relationships.Let me explain the key differences between **Dependency** and **Association** with this example:
+- **What**: A owns B completely
+- **How**: A creates and destroys B
+- **Coupling**: Strong - B cannot exist without A
+- **Example**: House has Rooms (rooms don't exist without the house)
 
-### Association (Professor → Student)
+### 5. **Implementation** `A - - -▷ B`
 
-**Definition**: A "has-a" relationship where one class has a long-term connection to another class.
-
-**Characteristics**:
-- Student is stored as a field in Professor class
-- The relationship persists throughout the Professor object's lifetime
-- Professor "owns" references to Students
-- Stronger coupling than dependency
-
-**In the code**:
 ```dart
-field Student student  // Students are stored as class members
+// 5. IMPLEMENTATION - A implements interface B
+// Notation: A - - - ▷ B (dashed arrow with hollow triangle)
+
+abstract class Flyable {  // Interface B
+  void fly();
+}
+
+class Bird implements Flyable {  // Class A
+  @override
+  void fly() {
+    print('Bird is flying with wings');
+  }
+}
+
+class Airplane implements Flyable {  // Another A
+  @override
+  void fly() {
+    print('Airplane is flying with engines');
+  }
+}
 ```
 
-### Dependency (Professor ⟶ Course)
+- **What**: A implements interface B
+- **How**: A must provide all methods declared in B
+- **Coupling**: Moderate - contract-based relationship
+- **Example**: Bird implements Flyable interface
 
-**Definition**: A "uses-a" relationship where one class temporarily uses another class.
+### 6. **Inheritance** (Strongest) `A ——▷ B`
 
-**Characteristics**:
-- Course is NOT stored as a field
-- Only used as method parameters or local variables
-- Temporary relationship during method execution
-- Weaker coupling - Professor can exist without Course
-
-**In the code**:
 ```dart
-method teach(Course c)  // Course is only a parameter, not stored
+// 6. INHERITANCE (Strongest) - A is-a B
+// Notation: A ——▷ B (solid arrow with hollow triangle)
+
+class Animal {  // Class B (superclass)
+  String species;
+  
+  Animal({required this.species});
+  
+  void breathe() {
+    print('$species is breathing');
+  }
+}
+
+class Dog extends Animal {  // Class A (subclass)
+  String breed;
+  
+  Dog({required this.breed}) : super(species: 'Canine');
+  
+  void bark() {
+    print('$breed dog is barking');
+  }
+}
+
 ```
 
-## Visual Representation:
+
+- **What**: A "is-a" B
+- **How**: A inherits all properties and methods from B
+- **Coupling**: Very strong - changes to B affect A
+- **Example**: Dog extends Animal
+
+## Key Design Principles:
+
+COUPLING STRENGTH EXPLANATION:
 
 ```
-Professor ————————> Student    (Association: solid line)
-   |                          "Professor HAS Students"
-   |
-   ┆ - - - - -> Course       (Dependency: dashed line)
-                             "Professor USES Course"
+WEAKEST ←————————————————————————————————————————————————————————————→ STRONGEST
+   |                                                                       |
+Dependency → Association → Aggregation/Implementation → Composition → Inheritance
 ```
 
-## Why This Matters:
+- Dependency: Loosest coupling, temporary usage
+- Association: Permanent reference, but independent
+- Aggregation: Whole-part relationship, parts can exist alone
+- Implementation: Contract-based, moderate coupling
+- Composition: Strong ownership, parts depend on whole
+- Inheritance: Tightest coupling, child IS parent
 
-1. **Coupling Strength**:
-   - Association creates stronger coupling
-   - Dependency creates looser coupling
+1. **Prefer weaker relationships** when possible for flexibility
+2. **Use composition over inheritance** for better modularity
+3. **Dependencies are easier to test** than associations
+4. **Interfaces provide flexibility** while maintaining contracts
+5. **Inheritance should represent true "is-a" relationships**
 
-2. **Lifetime Management**:
-   - Associated objects (Students) live with the Professor
-   - Dependent objects (Courses) are temporary
+The diagram shows these relationships nested to indicate that stronger relationships often include characteristics of weaker ones (e.g., inheritance includes aspects of implementation and dependency).
 
-3. **Design Flexibility**:
-   - Dependencies are easier to change/mock/test
-   - Associations require more careful design
-
-4. **Memory Impact**:
-   - Associations hold references (memory implications)
-   - Dependencies release references after use
-
-This pattern is fundamental in software design as it helps manage complexity and create more maintainable, testable code.
