@@ -12,6 +12,7 @@ book:
     - part: OOP
       chapters:
        - "contents/oop/oop-basic.qmd" 
+       - "contents/oop/oop-relation.qmd"
         
 bibliography: references.bib
 
