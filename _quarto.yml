@@ -11,6 +11,7 @@ book:
     - index.qmd
     - part: OOP
       chapters:
+       - "contents/oop/oop-cheatsheet.qmd"
        - "contents/oop/oop-basic.qmd" 
        - "contents/oop/oop-relation.qmd"
        - "contents/oop/oop-relation-ex1.qmd"
