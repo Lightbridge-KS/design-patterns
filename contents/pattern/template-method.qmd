@@ -1,0 +1,43 @@
+# Template Method Pattern
+
+::: {.callout-note appearance="simple" collapse="false"}
+**Q:** What is "template method pattern" in software design? Explain and give simple example in Dart.
+:::
+
+
+The **Template Method Pattern** is a behavioral design pattern that defines the skeleton of an algorithm in a base class, letting subclasses override specific steps without changing the algorithm's structure.
+
+## Core Concept
+
+The pattern uses a "template method" that calls several abstract or virtual methods in a specific order. Subclasses implement these methods to customize behavior while maintaining the overall flow.
+
+```
+Base Class
+    │
+    ├── template_method() ← Fixed algorithm structure
+    │   ├── step1()
+    │   ├── step2() 
+    │   └── step3()
+    │
+    └── Abstract methods that subclasses must implement
+```
+
+## Simple Dart Example
+
+Let's create a data processing template:## Key Benefits
+
+**Structure Consistency:** All processors follow the same 4-step workflow (load → validate → transform → save)
+
+**Code Reuse:** The template method in the base class eliminates duplication
+
+**Extensibility:** Easy to add new data formats (XML, Excel) by extending the base class
+
+**Maintainability:** Algorithm changes happen in one place
+
+## When to Use
+
+- Multiple classes have similar algorithms with slight variations
+- You want to control the algorithm structure while allowing customization
+- Common in frameworks (like Flutter's widget lifecycle methods)
+
+The pattern is particularly useful in radiology data processing where you might handle DICOM, NIfTI, or other medical imaging formats using the same processing pipeline but different implementation details.

@@ -18,6 +18,7 @@ book:
     - part: Pattern
       chapters: 
        - "contents/pattern/composition-over-inherits.qmd"
+       - "contents/pattern/template-method.qmd"
         
 bibliography: references.bib
 
