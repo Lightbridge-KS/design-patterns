@@ -19,6 +19,9 @@ book:
       chapters: 
        - "contents/pattern/composition-over-inherits.qmd"
        - "contents/pattern/template-method.qmd"
+    - part: Transport
+      chapters: 
+        - "contents/pattern/dto-explained.qmd"
         
 bibliography: references.bib
 
