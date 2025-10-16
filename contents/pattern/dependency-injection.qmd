@@ -1,0 +1,1621 @@
+# Dependency Injection
+
+Dependency Injection (DI) is a design pattern that implements Inversion of Control (IoC) by removing hard-coded dependencies and making it possible to change them at runtime or compile time. This pattern helps create loosely coupled, testable, and maintainable code.
+
+## Core Concepts
+
+```
+┌─────────────────────────────────────────────────┐
+│                Without DI                        │
+│  ┌──────────┐                                   │
+│  │  ClassA  │──creates──> ┌──────────┐         │
+│  │          │              │  ClassB  │         │
+│  └──────────┘              └──────────┘         │
+│       Tight Coupling (Bad)                      │
+└─────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────┐
+│                 With DI                          │
+│  ┌──────────┐              ┌──────────┐        │
+│  │  ClassA  │<──injects──  │  ClassB  │        │
+│  │          │              │          │        │
+│  └──────────┘              └──────────┘        │
+│       ▲                         ▲               │
+│       │                         │               │
+│       └─────────┬───────────────┘               │
+│          ┌──────▼──────┐                        │
+│          │   Injector   │                        │
+│          └──────────────┘                        │
+│       Loose Coupling (Good)                     │
+└─────────────────────────────────────────────────┘
+```
+
+## Types of Dependency Injection
+
+1. **Constructor Injection** - Dependencies provided through constructor
+2. **Property/Setter Injection** - Dependencies set via properties or setters
+3. **Method Injection** - Dependencies passed as method parameters
+4. **Interface Injection** - Dependency provides injector method (less common)
+
+## Constructor Injection
+
+The most common and recommended form of dependency injection.
+
+::: {.panel-tabset}
+#### TS
+
+```typescript
+// Define interfaces for abstraction
+interface ILogger {
+    log(message: string): void;
+}
+
+interface IEmailService {
+    sendEmail(to: string, subject: string, body: string): void;
+}
+
+// Concrete implementations
+class ConsoleLogger implements ILogger {
+    log(message: string): void {
+        console.log(`[LOG]: ${message}`);
+    }
+}
+
+class FileLogger implements ILogger {
+    constructor(private filename: string) {}
+
+    log(message: string): void {
+        // In real app, write to file
+        console.log(`[FILE ${this.filename}]: ${message}`);
+    }
+}
+
+class EmailService implements IEmailService {
+    constructor(private logger: ILogger) {}
+
+    sendEmail(to: string, subject: string, body: string): void {
+        this.logger.log(`Sending email to ${to}`);
+        // Send email logic here
+        this.logger.log(`Email sent successfully`);
+    }
+}
+
+// Service that depends on logger and email service
+class UserService {
+    // Dependencies injected through constructor
+    constructor(
+        private logger: ILogger,
+        private emailService: IEmailService
+    ) {}
+
+    createUser(email: string, name: string): void {
+        this.logger.log(`Creating user: ${name}`);
+
+        // Business logic
+        const userId = Math.random().toString(36);
+
+        this.emailService.sendEmail(
+            email,
+            "Welcome!",
+            `Hello ${name}, your ID is ${userId}`
+        );
+
+        this.logger.log(`User created with ID: ${userId}`);
+    }
+}
+
+// Usage - Manual injection
+const logger = new ConsoleLogger();
+const emailService = new EmailService(logger);
+const userService = new UserService(logger, emailService);
+
+userService.createUser("user@example.com", "Alice");
+
+// Easy to swap implementations
+const fileLogger = new FileLogger("app.log");
+const emailServiceWithFileLogger = new EmailService(fileLogger);
+const userServiceWithFileLogger = new UserService(
+    fileLogger,
+    emailServiceWithFileLogger
+);
+```
+
+#### csharp
+
+```csharp
+// Define interfaces for abstraction
+public interface ILogger
+{
+    void Log(string message);
+}
+
+public interface IEmailService
+{
+    void SendEmail(string to, string subject, string body);
+}
+
+// Concrete implementations
+public class ConsoleLogger : ILogger
+{
+    public void Log(string message)
+    {
+        Console.WriteLine($"[LOG]: {message}");
+    }
+}
+
+public class FileLogger : ILogger
+{
+    private readonly string filename;
+
+    public FileLogger(string filename)
+    {
+        this.filename = filename;
+    }
+
+    public void Log(string message)
+    {
+        // In real app, write to file
+        File.AppendAllText(filename, $"[{DateTime.Now}]: {message}\n");
+    }
+}
+
+public class EmailService : IEmailService
+{
+    private readonly ILogger logger;
+
+    public EmailService(ILogger logger)
+    {
+        this.logger = logger;
+    }
+
+    public void SendEmail(string to, string subject, string body)
+    {
+        logger.Log($"Sending email to {to}");
+        // Send email logic here
+        logger.Log("Email sent successfully");
+    }
+}
+
+// Service that depends on logger and email service
+public class UserService
+{
+    private readonly ILogger logger;
+    private readonly IEmailService emailService;
+
+    // Dependencies injected through constructor
+    public UserService(ILogger logger, IEmailService emailService)
+    {
+        this.logger = logger;
+        this.emailService = emailService;
+    }
+
+    public void CreateUser(string email, string name)
+    {
+        logger.Log($"Creating user: {name}");
+
+        // Business logic
+        var userId = Guid.NewGuid().ToString();
+
+        emailService.SendEmail(
+            email,
+            "Welcome!",
+            $"Hello {name}, your ID is {userId}"
+        );
+
+        logger.Log($"User created with ID: {userId}");
+    }
+}
+
+// Usage - Manual injection
+class Program
+{
+    static void Main()
+    {
+        var logger = new ConsoleLogger();
+        var emailService = new EmailService(logger);
+        var userService = new UserService(logger, emailService);
+
+        userService.CreateUser("user@example.com", "Alice");
+
+        // Easy to swap implementations
+        var fileLogger = new FileLogger("app.log");
+        var emailServiceWithFileLogger = new EmailService(fileLogger);
+        var userServiceWithFileLogger = new UserService(
+            fileLogger,
+            emailServiceWithFileLogger
+        );
+    }
+}
+```
+
+#### Python
+
+```python
+from abc import ABC, abstractmethod
+from typing import Protocol
+import uuid
+from datetime import datetime
+
+# Define protocols/interfaces for abstraction
+class Logger(Protocol):
+    def log(self, message: str) -> None: ...
+
+class EmailService(Protocol):
+    def send_email(self, to: str, subject: str, body: str) -> None: ...
+
+# Concrete implementations
+class ConsoleLogger:
+    def log(self, message: str) -> None:
+        print(f"[LOG]: {message}")
+
+class FileLogger:
+    def __init__(self, filename: str):
+        self.filename = filename
+
+    def log(self, message: str) -> None:
+        with open(self.filename, 'a') as f:
+            f.write(f"[{datetime.now()}]: {message}\n")
+
+class EmailServiceImpl:
+    def __init__(self, logger: Logger):
+        self.logger = logger
+
+    def send_email(self, to: str, subject: str, body: str) -> None:
+        self.logger.log(f"Sending email to {to}")
+        # Send email logic here
+        self.logger.log("Email sent successfully")
+
+# Service that depends on logger and email service
+class UserService:
+    # Dependencies injected through constructor
+    def __init__(self, logger: Logger, email_service: EmailService):
+        self.logger = logger
+        self.email_service = email_service
+
+    def create_user(self, email: str, name: str) -> None:
+        self.logger.log(f"Creating user: {name}")
+
+        # Business logic
+        user_id = str(uuid.uuid4())
+
+        self.email_service.send_email(
+            email,
+            "Welcome!",
+            f"Hello {name}, your ID is {user_id}"
+        )
+
+        self.logger.log(f"User created with ID: {user_id}")
+
+# Usage - Manual injection
+logger = ConsoleLogger()
+email_service = EmailServiceImpl(logger)
+user_service = UserService(logger, email_service)
+
+user_service.create_user("user@example.com", "Alice")
+
+# Easy to swap implementations
+file_logger = FileLogger("app.log")
+email_service_with_file = EmailServiceImpl(file_logger)
+user_service_with_file = UserService(file_logger, email_service_with_file)
+```
+
+:::
+
+## Property/Setter Injection
+
+Dependencies are injected through properties or setter methods after object creation.
+
+::: {.panel-tabset}
+#### TS
+
+```typescript
+interface IDatabase {
+    connect(): void;
+    query(sql: string): any[];
+}
+
+class PostgresDatabase implements IDatabase {
+    connect(): void {
+        console.log("Connected to PostgreSQL");
+    }
+
+    query(sql: string): any[] {
+        console.log(`Executing: ${sql}`);
+        return [];
+    }
+}
+
+class Repository {
+    // Property injection - dependency set after construction
+    private _database?: IDatabase;
+
+    set database(db: IDatabase) {
+        this._database = db;
+        this._database.connect();
+    }
+
+    get database(): IDatabase {
+        if (!this._database) {
+            throw new Error("Database not injected");
+        }
+        return this._database;
+    }
+
+    findAll(): any[] {
+        return this.database.query("SELECT * FROM users");
+    }
+}
+
+// Usage
+const repo = new Repository();
+repo.database = new PostgresDatabase(); // Inject dependency via setter
+const users = repo.findAll();
+
+// Alternative: Method chaining pattern
+class FluentRepository {
+    private _database?: IDatabase;
+    private _cache?: Map<string, any>;
+
+    withDatabase(db: IDatabase): this {
+        this._database = db;
+        return this;
+    }
+
+    withCache(cache: Map<string, any>): this {
+        this._cache = cache;
+        return this;
+    }
+
+    build(): void {
+        if (!this._database) {
+            throw new Error("Database is required");
+        }
+        this._database.connect();
+    }
+}
+
+// Fluent usage
+const fluentRepo = new FluentRepository()
+    .withDatabase(new PostgresDatabase())
+    .withCache(new Map());
+fluentRepo.build();
+```
+
+#### csharp
+
+```csharp
+public interface IDatabase
+{
+    void Connect();
+    List<object> Query(string sql);
+}
+
+public class PostgresDatabase : IDatabase
+{
+    public void Connect()
+    {
+        Console.WriteLine("Connected to PostgreSQL");
+    }
+
+    public List<object> Query(string sql)
+    {
+        Console.WriteLine($"Executing: {sql}");
+        return new List<object>();
+    }
+}
+
+public class Repository
+{
+    private IDatabase? _database;
+
+    // Property injection with auto-property
+    public IDatabase Database
+    {
+        get => _database ?? throw new InvalidOperationException("Database not injected");
+        set
+        {
+            _database = value;
+            _database.Connect();
+        }
+    }
+
+    // Optional dependency with null checking
+    public ILogger? Logger { get; set; }
+
+    public List<object> FindAll()
+    {
+        Logger?.Log("Finding all users");
+        return Database.Query("SELECT * FROM users");
+    }
+}
+
+// Usage
+class Program
+{
+    static void Main()
+    {
+        var repo = new Repository();
+        repo.Database = new PostgresDatabase(); // Inject via property
+        repo.Logger = new ConsoleLogger(); // Optional dependency
+
+        var users = repo.FindAll();
+    }
+}
+
+// Alternative: Fluent builder pattern
+public class RepositoryBuilder
+{
+    private readonly Repository _repository = new();
+
+    public RepositoryBuilder WithDatabase(IDatabase database)
+    {
+        _repository.Database = database;
+        return this;
+    }
+
+    public RepositoryBuilder WithLogger(ILogger logger)
+    {
+        _repository.Logger = logger;
+        return this;
+    }
+
+    public Repository Build()
+    {
+        if (_repository.Database == null)
+            throw new InvalidOperationException("Database is required");
+
+        return _repository;
+    }
+}
+
+// Fluent usage
+var repository = new RepositoryBuilder()
+    .WithDatabase(new PostgresDatabase())
+    .WithLogger(new ConsoleLogger())
+    .Build();
+```
+
+#### Python
+
+```python
+from typing import Optional, List, Any
+
+class Database(Protocol):
+    def connect(self) -> None: ...
+    def query(self, sql: str) -> List[Any]: ...
+
+class PostgresDatabase:
+    def connect(self) -> None:
+        print("Connected to PostgreSQL")
+
+    def query(self, sql: str) -> List[Any]:
+        print(f"Executing: {sql}")
+        return []
+
+class Repository:
+    def __init__(self):
+        self._database: Optional[Database] = None
+        self._logger: Optional[Logger] = None
+
+    # Property injection using @property
+    @property
+    def database(self) -> Database:
+        if not self._database:
+            raise ValueError("Database not injected")
+        return self._database
+
+    @database.setter
+    def database(self, db: Database) -> None:
+        self._database = db
+        self._database.connect()
+
+    # Optional dependency
+    @property
+    def logger(self) -> Optional[Logger]:
+        return self._logger
+
+    @logger.setter
+    def logger(self, logger: Logger) -> None:
+        self._logger = logger
+
+    def find_all(self) -> List[Any]:
+        if self.logger:
+            self.logger.log("Finding all users")
+        return self.database.query("SELECT * FROM users")
+
+# Usage
+repo = Repository()
+repo.database = PostgresDatabase()  # Inject via setter
+repo.logger = ConsoleLogger()  # Optional dependency
+users = repo.find_all()
+
+# Alternative: Builder pattern with method chaining
+class FluentRepository:
+    def __init__(self):
+        self._database: Optional[Database] = None
+        self._cache: Optional[dict] = None
+
+    def with_database(self, db: Database) -> 'FluentRepository':
+        self._database = db
+        return self
+
+    def with_cache(self, cache: dict) -> 'FluentRepository':
+        self._cache = cache
+        return self
+
+    def build(self) -> None:
+        if not self._database:
+            raise ValueError("Database is required")
+        self._database.connect()
+
+# Fluent usage
+fluent_repo = (FluentRepository()
+    .with_database(PostgresDatabase())
+    .with_cache({}))
+fluent_repo.build()
+```
+
+:::
+
+## Method Injection
+
+Dependencies are passed as method parameters when needed.
+
+::: {.panel-tabset}
+#### TS
+
+```typescript
+interface IValidator {
+    validate(data: any): boolean;
+}
+
+class EmailValidator implements IValidator {
+    validate(data: any): boolean {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return emailRegex.test(data);
+    }
+}
+
+class PhoneValidator implements IValidator {
+    validate(data: any): boolean {
+        const phoneRegex = /^\d{10}$/;
+        return phoneRegex.test(data);
+    }
+}
+
+class DataProcessor {
+    // Method injection - dependency passed when needed
+    processData(data: any, validator: IValidator): void {
+        if (!validator.validate(data)) {
+            throw new Error("Invalid data");
+        }
+
+        console.log("Processing:", data);
+        // Process the data
+    }
+
+    // Multiple dependencies via method injection
+    processWithLogging(
+        data: any,
+        validator: IValidator,
+        logger: ILogger
+    ): void {
+        logger.log(`Processing data: ${data}`);
+
+        try {
+            this.processData(data, validator);
+            logger.log("Processing completed");
+        } catch (error) {
+            logger.log(`Error: ${error}`);
+            throw error;
+        }
+    }
+}
+
+// Usage
+const processor = new DataProcessor();
+
+// Inject different validators based on context
+processor.processData("user@example.com", new EmailValidator());
+processor.processData("1234567890", new PhoneValidator());
+
+// Inject multiple dependencies
+processor.processWithLogging(
+    "test@test.com",
+    new EmailValidator(),
+    new ConsoleLogger()
+);
+```
+
+#### csharp
+
+```csharp
+public interface IValidator
+{
+    bool Validate(object data);
+}
+
+public class EmailValidator : IValidator
+{
+    public bool Validate(object data)
+    {
+        if (data is not string email) return false;
+        return Regex.IsMatch(email, @"^[^\s@]+@[^\s@]+\.[^\s@]+$");
+    }
+}
+
+public class PhoneValidator : IValidator
+{
+    public bool Validate(object data)
+    {
+        if (data is not string phone) return false;
+        return Regex.IsMatch(phone, @"^\d{10}$");
+    }
+}
+
+public class DataProcessor
+{
+    // Method injection - dependency passed when needed
+    public void ProcessData(object data, IValidator validator)
+    {
+        if (!validator.Validate(data))
+        {
+            throw new ArgumentException("Invalid data");
+        }
+
+        Console.WriteLine($"Processing: {data}");
+        // Process the data
+    }
+
+    // Multiple dependencies via method injection
+    public void ProcessWithLogging(
+        object data,
+        IValidator validator,
+        ILogger logger)
+    {
+        logger.Log($"Processing data: {data}");
+
+        try
+        {
+            ProcessData(data, validator);
+            logger.Log("Processing completed");
+        }
+        catch (Exception ex)
+        {
+            logger.Log($"Error: {ex.Message}");
+            throw;
+        }
+    }
+
+    // Generic method injection
+    public T Transform<T>(
+        object input,
+        Func<object, T> transformer,
+        Action<string>? logger = null)
+    {
+        logger?.Invoke($"Transforming: {input}");
+        var result = transformer(input);
+        logger?.Invoke($"Result: {result}");
+        return result;
+    }
+}
+
+// Usage
+class Program
+{
+    static void Main()
+    {
+        var processor = new DataProcessor();
+
+        // Inject different validators based on context
+        processor.ProcessData("user@example.com", new EmailValidator());
+        processor.ProcessData("1234567890", new PhoneValidator());
+
+        // Inject multiple dependencies
+        processor.ProcessWithLogging(
+            "test@test.com",
+            new EmailValidator(),
+            new ConsoleLogger()
+        );
+
+        // Generic method injection with lambda
+        var result = processor.Transform(
+            "123",
+            input => int.Parse(input.ToString()),
+            message => Console.WriteLine($"[LOG] {message}")
+        );
+    }
+}
+```
+
+#### Python
+
+```python
+import re
+from typing import Any, Callable, Optional
+
+class Validator(Protocol):
+    def validate(self, data: Any) -> bool: ...
+
+class EmailValidator:
+    def validate(self, data: Any) -> bool:
+        if not isinstance(data, str):
+            return False
+        return bool(re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]+$', data))
+
+class PhoneValidator:
+    def validate(self, data: Any) -> bool:
+        if not isinstance(data, str):
+            return False
+        return bool(re.match(r'^\d{10}$', data))
+
+class DataProcessor:
+    # Method injection - dependency passed when needed
+    def process_data(self, data: Any, validator: Validator) -> None:
+        if not validator.validate(data):
+            raise ValueError("Invalid data")
+
+        print(f"Processing: {data}")
+        # Process the data
+
+    # Multiple dependencies via method injection
+    def process_with_logging(
+        self,
+        data: Any,
+        validator: Validator,
+        logger: Logger
+    ) -> None:
+        logger.log(f"Processing data: {data}")
+
+        try:
+            self.process_data(data, validator)
+            logger.log("Processing completed")
+        except Exception as e:
+            logger.log(f"Error: {e}")
+            raise
+
+    # Using callable as dependency
+    def transform(
+        self,
+        data: Any,
+        transformer: Callable[[Any], Any],
+        logger: Optional[Callable[[str], None]] = None
+    ) -> Any:
+        if logger:
+            logger(f"Transforming: {data}")
+
+        result = transformer(data)
+
+        if logger:
+            logger(f"Result: {result}")
+
+        return result
+
+# Usage
+processor = DataProcessor()
+
+# Inject different validators based on context
+processor.process_data("user@example.com", EmailValidator())
+processor.process_data("1234567890", PhoneValidator())
+
+# Inject multiple dependencies
+processor.process_with_logging(
+    "test@test.com",
+    EmailValidator(),
+    ConsoleLogger()
+)
+
+# Using lambda/callable injection
+result = processor.transform(
+    "123",
+    transformer=lambda x: int(x),
+    logger=lambda msg: print(f"[LOG] {msg}")
+)
+```
+
+:::
+
+## DI Containers and Frameworks
+
+Modern frameworks provide DI containers to automatically manage dependency injection.
+
+::: {.panel-tabset}
+#### TS
+
+```typescript
+// Using InversifyJS - Popular DI container for TypeScript
+import "reflect-metadata";
+import { Container, injectable, inject } from "inversify";
+
+// Define service identifiers
+const TYPES = {
+    Logger: Symbol.for("Logger"),
+    Database: Symbol.for("Database"),
+    EmailService: Symbol.for("EmailService"),
+    UserService: Symbol.for("UserService")
+};
+
+// Mark classes as injectable
+@injectable()
+class ConsoleLogger implements ILogger {
+    log(message: string): void {
+        console.log(`[Console]: ${message}`);
+    }
+}
+
+@injectable()
+class DatabaseService implements IDatabase {
+    connect(): void {
+        console.log("Database connected");
+    }
+
+    query(sql: string): any[] {
+        return [];
+    }
+}
+
+@injectable()
+class EmailService implements IEmailService {
+    constructor(
+        @inject(TYPES.Logger) private logger: ILogger
+    ) {}
+
+    sendEmail(to: string, subject: string, body: string): void {
+        this.logger.log(`Sending email to ${to}`);
+    }
+}
+
+@injectable()
+class UserService {
+    constructor(
+        @inject(TYPES.Logger) private logger: ILogger,
+        @inject(TYPES.Database) private database: IDatabase,
+        @inject(TYPES.EmailService) private emailService: IEmailService
+    ) {}
+
+    createUser(email: string, name: string): void {
+        this.database.connect();
+        this.logger.log(`Creating user: ${name}`);
+        this.emailService.sendEmail(email, "Welcome", "Hello!");
+    }
+}
+
+// Container configuration
+const container = new Container();
+
+// Bind interfaces to implementations
+container.bind<ILogger>(TYPES.Logger).to(ConsoleLogger).inSingletonScope();
+container.bind<IDatabase>(TYPES.Database).to(DatabaseService);
+container.bind<IEmailService>(TYPES.EmailService).to(EmailService);
+container.bind<UserService>(TYPES.UserService).to(UserService);
+
+// Usage
+const userService = container.get<UserService>(TYPES.UserService);
+userService.createUser("user@example.com", "Alice");
+
+// Alternative: Simple DIY container
+class SimpleDIContainer {
+    private services = new Map<string, any>();
+    private singletons = new Map<string, any>();
+
+    register<T>(key: string, factory: () => T, singleton = false): void {
+        if (singleton) {
+            this.singletons.set(key, null);
+        }
+        this.services.set(key, factory);
+    }
+
+    resolve<T>(key: string): T {
+        if (this.singletons.has(key)) {
+            if (!this.singletons.get(key)) {
+                const factory = this.services.get(key);
+                this.singletons.set(key, factory());
+            }
+            return this.singletons.get(key);
+        }
+
+        const factory = this.services.get(key);
+        if (!factory) {
+            throw new Error(`Service ${key} not registered`);
+        }
+        return factory();
+    }
+}
+
+// Usage of simple container
+const simpleContainer = new SimpleDIContainer();
+
+simpleContainer.register("logger", () => new ConsoleLogger(), true);
+simpleContainer.register("database", () => new DatabaseService());
+simpleContainer.register("emailService",
+    () => new EmailService(simpleContainer.resolve("logger"))
+);
+
+const logger = simpleContainer.resolve<ILogger>("logger");
+```
+
+#### csharp
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+
+// Using .NET Core's built-in DI container
+public class Startup
+{
+    public void ConfigureServices(IServiceCollection services)
+    {
+        // Register services with different lifetimes
+        services.AddSingleton<ILogger, ConsoleLogger>();
+        services.AddScoped<IDatabase, PostgresDatabase>();
+        services.AddTransient<IEmailService, EmailService>();
+        services.AddTransient<UserService>();
+
+        // Register with factory
+        services.AddSingleton<IConfiguration>(provider =>
+        {
+            var config = new Configuration();
+            config.Load("appsettings.json");
+            return config;
+        });
+
+        // Register multiple implementations
+        services.AddSingleton<IValidator, EmailValidator>();
+        services.AddSingleton<IValidator, PhoneValidator>();
+
+        // Conditional registration
+        services.AddScoped<IDatabase>(provider =>
+        {
+            var config = provider.GetRequiredService<IConfiguration>();
+            return config.GetValue("UsePostgres")
+                ? new PostgresDatabase()
+                : new MySqlDatabase();
+        });
+    }
+}
+
+// Service with dependencies automatically injected
+public class UserController
+{
+    private readonly UserService userService;
+    private readonly ILogger logger;
+
+    // Constructor injection handled by DI container
+    public UserController(UserService userService, ILogger logger)
+    {
+        this.userService = userService;
+        this.logger = logger;
+    }
+
+    public void CreateUser(string email, string name)
+    {
+        logger.Log("Controller: Creating user");
+        userService.CreateUser(email, name);
+    }
+}
+
+// Program entry point
+class Program
+{
+    static void Main()
+    {
+        // Build service container
+        var services = new ServiceCollection();
+        var startup = new Startup();
+        startup.ConfigureServices(services);
+
+        var serviceProvider = services.BuildServiceProvider();
+
+        // Resolve services
+        var controller = serviceProvider.GetRequiredService<UserController>();
+        controller.CreateUser("user@example.com", "Alice");
+
+        // Using scope for scoped services
+        using (var scope = serviceProvider.CreateScope())
+        {
+            var database = scope.ServiceProvider.GetRequiredService<IDatabase>();
+            database.Connect();
+        }
+    }
+}
+
+// Custom simple DI container implementation
+public class SimpleDIContainer
+{
+    private readonly Dictionary<Type, Func<object>> services = new();
+    private readonly Dictionary<Type, object> singletons = new();
+
+    public void Register<TInterface, TImplementation>(bool singleton = false)
+        where TImplementation : TInterface, new()
+    {
+        services[typeof(TInterface)] = () => Activator.CreateInstance<TImplementation>();
+
+        if (singleton)
+        {
+            singletons[typeof(TInterface)] = null;
+        }
+    }
+
+    public void Register<T>(Func<T> factory, bool singleton = false)
+    {
+        services[typeof(T)] = () => factory();
+
+        if (singleton)
+        {
+            singletons[typeof(T)] = null;
+        }
+    }
+
+    public T Resolve<T>()
+    {
+        var type = typeof(T);
+
+        if (singletons.ContainsKey(type))
+        {
+            if (singletons[type] == null)
+            {
+                singletons[type] = services[type]();
+            }
+            return (T)singletons[type];
+        }
+
+        if (services.ContainsKey(type))
+        {
+            return (T)services[type]();
+        }
+
+        throw new InvalidOperationException($"Service {type.Name} not registered");
+    }
+}
+```
+
+#### Python
+
+```python
+# Using dependency-injector library
+from dependency_injector import containers, providers
+
+# Define container with providers
+class Container(containers.DeclarativeContainer):
+    # Configuration
+    config = providers.Configuration()
+
+    # Singleton - same instance always
+    logger = providers.Singleton(
+        ConsoleLogger
+    )
+
+    # Factory - new instance each time
+    database = providers.Factory(
+        PostgresDatabase,
+        connection_string=config.db.connection_string
+    )
+
+    # Singleton with dependency
+    email_service = providers.Singleton(
+        EmailServiceImpl,
+        logger=logger
+    )
+
+    # Service with multiple dependencies
+    user_service = providers.Factory(
+        UserService,
+        logger=logger,
+        email_service=email_service
+    )
+
+# Usage
+container = Container()
+container.config.db.connection_string.from_value("postgresql://localhost/db")
+
+user_service = container.user_service()
+user_service.create_user("user@example.com", "Alice")
+
+# Simple DIY container implementation
+class SimpleDIContainer:
+    def __init__(self):
+        self._services = {}
+        self._singletons = {}
+
+    def register(self, key: str, factory: Callable, singleton: bool = False):
+        """Register a service with the container"""
+        self._services[key] = factory
+        if singleton:
+            self._singletons[key] = None
+
+    def resolve(self, key: str) -> Any:
+        """Resolve a service from the container"""
+        if key in self._singletons:
+            if self._singletons[key] is None:
+                self._singletons[key] = self._services[key](self)
+            return self._singletons[key]
+
+        if key not in self._services:
+            raise KeyError(f"Service '{key}' not registered")
+
+        return self._services[key](self)
+
+    def __getitem__(self, key: str) -> Any:
+        """Allow dictionary-like access"""
+        return self.resolve(key)
+
+# Usage of simple container
+container = SimpleDIContainer()
+
+# Register services
+container.register("logger", lambda c: ConsoleLogger(), singleton=True)
+container.register("database", lambda c: PostgresDatabase())
+container.register("email_service",
+    lambda c: EmailServiceImpl(c["logger"]),
+    singleton=True
+)
+container.register("user_service",
+    lambda c: UserService(c["logger"], c["email_service"])
+)
+
+# Resolve and use
+user_service = container["user_service"]
+user_service.create_user("test@test.com", "Bob")
+
+# Using Python's built-in typing and dataclasses for DI
+from dataclasses import dataclass
+from typing import Protocol
+
+@dataclass
+class AppConfig:
+    """Configuration container"""
+    db_host: str = "localhost"
+    db_port: int = 5432
+    log_level: str = "INFO"
+
+@dataclass
+class ServiceRegistry:
+    """Manual service registry using dataclass"""
+    config: AppConfig
+    logger: Logger
+    database: Database
+    email_service: EmailService
+
+    @classmethod
+    def create_default(cls) -> 'ServiceRegistry':
+        """Factory method to create with default services"""
+        config = AppConfig()
+        logger = ConsoleLogger()
+        database = PostgresDatabase()
+        email_service = EmailServiceImpl(logger)
+
+        return cls(
+            config=config,
+            logger=logger,
+            database=database,
+            email_service=email_service
+        )
+
+# Usage
+registry = ServiceRegistry.create_default()
+user_service = UserService(registry.logger, registry.email_service)
+```
+
+:::
+
+## Advanced Patterns
+
+### Service Locator Pattern
+
+::: {.panel-tabset}
+#### TS
+
+```typescript
+// Service Locator - Anti-pattern but sometimes useful
+class ServiceLocator {
+    private static services = new Map<string, any>();
+
+    static register(key: string, service: any): void {
+        this.services.set(key, service);
+    }
+
+    static get<T>(key: string): T {
+        const service = this.services.get(key);
+        if (!service) {
+            throw new Error(`Service ${key} not found`);
+        }
+        return service;
+    }
+}
+
+// Usage - less explicit than constructor injection
+class ProductService {
+    private logger = ServiceLocator.get<ILogger>("logger");
+    private database = ServiceLocator.get<IDatabase>("database");
+
+    createProduct(name: string): void {
+        this.logger.log(`Creating product: ${name}`);
+        this.database.query("INSERT INTO products...");
+    }
+}
+```
+
+#### csharp
+
+```csharp
+// Service Locator Pattern
+public class ServiceLocator
+{
+    private static readonly Dictionary<Type, object> services = new();
+
+    public static void Register<T>(T service)
+    {
+        services[typeof(T)] = service;
+    }
+
+    public static T Get<T>()
+    {
+        if (services.TryGetValue(typeof(T), out var service))
+        {
+            return (T)service;
+        }
+        throw new InvalidOperationException($"Service {typeof(T).Name} not found");
+    }
+}
+
+// Usage
+public class ProductService
+{
+    private readonly ILogger logger;
+    private readonly IDatabase database;
+
+    public ProductService()
+    {
+        // Service locator hides dependencies
+        logger = ServiceLocator.Get<ILogger>();
+        database = ServiceLocator.Get<IDatabase>();
+    }
+
+    public void CreateProduct(string name)
+    {
+        logger.Log($"Creating product: {name}");
+        database.Query("INSERT INTO products...");
+    }
+}
+```
+
+#### Python
+
+```python
+# Service Locator Pattern
+class ServiceLocator:
+    _services = {}
+
+    @classmethod
+    def register(cls, key: str, service: Any) -> None:
+        cls._services[key] = service
+
+    @classmethod
+    def get(cls, key: str) -> Any:
+        if key not in cls._services:
+            raise KeyError(f"Service '{key}' not found")
+        return cls._services[key]
+
+# Usage - less explicit dependencies
+class ProductService:
+    def __init__(self):
+        # Dependencies hidden in constructor
+        self.logger = ServiceLocator.get("logger")
+        self.database = ServiceLocator.get("database")
+
+    def create_product(self, name: str) -> None:
+        self.logger.log(f"Creating product: {name}")
+        self.database.query("INSERT INTO products...")
+```
+
+:::
+
+### Factory Pattern with DI
+
+::: {.panel-tabset}
+#### TS
+
+```typescript
+// Factory with dependency injection
+interface IServiceFactory {
+    createUserService(): UserService;
+    createProductService(): ProductService;
+}
+
+class ServiceFactory implements IServiceFactory {
+    constructor(
+        private logger: ILogger,
+        private database: IDatabase,
+        private emailService: IEmailService
+    ) {}
+
+    createUserService(): UserService {
+        return new UserService(this.logger, this.emailService);
+    }
+
+    createProductService(): ProductService {
+        return new ProductService(this.logger, this.database);
+    }
+}
+
+// Usage
+const factory = new ServiceFactory(
+    new ConsoleLogger(),
+    new DatabaseService(),
+    new EmailService(new ConsoleLogger())
+);
+
+const userService = factory.createUserService();
+const productService = factory.createProductService();
+```
+
+#### csharp
+
+```csharp
+// Factory with dependency injection
+public interface IServiceFactory
+{
+    UserService CreateUserService();
+    ProductService CreateProductService();
+}
+
+public class ServiceFactory : IServiceFactory
+{
+    private readonly ILogger logger;
+    private readonly IDatabase database;
+    private readonly IEmailService emailService;
+
+    public ServiceFactory(
+        ILogger logger,
+        IDatabase database,
+        IEmailService emailService)
+    {
+        this.logger = logger;
+        this.database = database;
+        this.emailService = emailService;
+    }
+
+    public UserService CreateUserService()
+    {
+        return new UserService(logger, emailService);
+    }
+
+    public ProductService CreateProductService()
+    {
+        return new ProductService(logger, database);
+    }
+}
+```
+
+#### Python
+
+```python
+# Factory with dependency injection
+class ServiceFactory:
+    def __init__(
+        self,
+        logger: Logger,
+        database: Database,
+        email_service: EmailService
+    ):
+        self.logger = logger
+        self.database = database
+        self.email_service = email_service
+
+    def create_user_service(self) -> UserService:
+        return UserService(self.logger, self.email_service)
+
+    def create_product_service(self) -> 'ProductService':
+        return ProductService(self.logger, self.database)
+
+# Usage
+factory = ServiceFactory(
+    ConsoleLogger(),
+    PostgresDatabase(),
+    EmailServiceImpl(ConsoleLogger())
+)
+
+user_service = factory.create_user_service()
+product_service = factory.create_product_service()
+```
+
+:::
+
+## Testing with Dependency Injection
+
+DI makes testing easier by allowing mock/stub injection:
+
+::: {.panel-tabset}
+#### TS
+
+```typescript
+// Mock implementations for testing
+class MockLogger implements ILogger {
+    public messages: string[] = [];
+
+    log(message: string): void {
+        this.messages.push(message);
+    }
+}
+
+class MockEmailService implements IEmailService {
+    public sentEmails: Array<{to: string, subject: string}> = [];
+
+    sendEmail(to: string, subject: string, body: string): void {
+        this.sentEmails.push({to, subject});
+    }
+}
+
+// Unit test with mocks
+describe("UserService", () => {
+    it("should create user and send email", () => {
+        // Arrange
+        const mockLogger = new MockLogger();
+        const mockEmailService = new MockEmailService();
+        const userService = new UserService(mockLogger, mockEmailService);
+
+        // Act
+        userService.createUser("test@test.com", "Test User");
+
+        // Assert
+        expect(mockLogger.messages).toContain("Creating user: Test User");
+        expect(mockEmailService.sentEmails).toHaveLength(1);
+        expect(mockEmailService.sentEmails[0].to).toBe("test@test.com");
+    });
+});
+```
+
+#### csharp
+
+```csharp
+// Using Moq framework for mocking
+[TestClass]
+public class UserServiceTests
+{
+    [TestMethod]
+    public void CreateUser_ShouldLogAndSendEmail()
+    {
+        // Arrange
+        var mockLogger = new Mock<ILogger>();
+        var mockEmailService = new Mock<IEmailService>();
+
+        var userService = new UserService(
+            mockLogger.Object,
+            mockEmailService.Object
+        );
+
+        // Act
+        userService.CreateUser("test@test.com", "Test User");
+
+        // Assert
+        mockLogger.Verify(
+            x => x.Log(It.Is<string>(s => s.Contains("Test User"))),
+            Times.Once
+        );
+
+        mockEmailService.Verify(
+            x => x.SendEmail("test@test.com", It.IsAny<string>(), It.IsAny<string>()),
+            Times.Once
+        );
+    }
+}
+
+// Manual mock implementation
+public class MockLogger : ILogger
+{
+    public List<string> Messages { get; } = new List<string>();
+
+    public void Log(string message)
+    {
+        Messages.Add(message);
+    }
+}
+```
+
+#### Python
+
+```python
+import unittest
+from unittest.mock import Mock, MagicMock
+
+class TestUserService(unittest.TestCase):
+    def test_create_user_logs_and_sends_email(self):
+        # Arrange
+        mock_logger = Mock(spec=Logger)
+        mock_email_service = Mock(spec=EmailService)
+
+        user_service = UserService(mock_logger, mock_email_service)
+
+        # Act
+        user_service.create_user("test@test.com", "Test User")
+
+        # Assert
+        mock_logger.log.assert_called()
+        calls = mock_logger.log.call_args_list
+        self.assertTrue(
+            any("Test User" in str(call) for call in calls)
+        )
+
+        mock_email_service.send_email.assert_called_once()
+        args = mock_email_service.send_email.call_args[0]
+        self.assertEqual(args[0], "test@test.com")
+
+# Manual mock implementation
+class MockLogger:
+    def __init__(self):
+        self.messages = []
+
+    def log(self, message: str) -> None:
+        self.messages.append(message)
+
+class MockEmailService:
+    def __init__(self):
+        self.sent_emails = []
+
+    def send_email(self, to: str, subject: str, body: str) -> None:
+        self.sent_emails.append({"to": to, "subject": subject})
+
+# Test with manual mocks
+def test_user_service_with_manual_mocks():
+    # Arrange
+    mock_logger = MockLogger()
+    mock_email_service = MockEmailService()
+    user_service = UserService(mock_logger, mock_email_service)
+
+    # Act
+    user_service.create_user("test@test.com", "Test User")
+
+    # Assert
+    assert any("Test User" in msg for msg in mock_logger.messages)
+    assert len(mock_email_service.sent_emails) == 1
+    assert mock_email_service.sent_emails[0]["to"] == "test@test.com"
+```
+
+:::
+
+## Best Practices
+
+### 1. **Prefer Constructor Injection**
+   - Most explicit about dependencies
+   - Ensures required dependencies are provided
+   - Makes testing easier
+
+### 2. **Program to Interfaces**
+   - Depend on abstractions, not concrete implementations
+   - Makes code more flexible and testable
+
+### 3. **Avoid Service Locator**
+   - Hides dependencies
+   - Makes testing harder
+   - Prefer explicit dependency injection
+
+### 4. **Use DI Containers Wisely**
+   - Don't let the container leak into business logic
+   - Configure container at application root
+   - Keep registration logic centralized
+
+### 5. **Keep Constructors Simple**
+   - Only assign dependencies
+   - Avoid complex logic in constructors
+   - Use factory methods for complex initialization
+
+### 6. **Manage Scope Appropriately**
+   - Singleton: Shared state, thread-safe services
+   - Scoped: Per-request or per-operation
+   - Transient: Stateless, lightweight services
+
+## Summary
+
+Dependency Injection is a powerful pattern that:
+
+- **Reduces coupling** between classes
+- **Improves testability** through easy mocking
+- **Increases flexibility** by allowing runtime configuration
+- **Makes dependencies explicit** and clear
+- **Supports SOLID principles**, especially Dependency Inversion
+
+Choose the injection method based on your needs:
+
+- **Constructor Injection**: For required dependencies
+- **Property Injection**: For optional dependencies
+- **Method Injection**: For context-specific dependencies
+- **DI Container**: For large applications with complex dependency graphs

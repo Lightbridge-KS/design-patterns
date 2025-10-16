@@ -19,6 +19,7 @@ book:
     - part: Pattern
       chapters: 
        - "contents/pattern/composition-over-inherits.qmd"
+       - "contents/pattern/dependency-injection.qmd"
        - "contents/pattern/template-method.qmd"
     - part: Transport
       chapters: 
