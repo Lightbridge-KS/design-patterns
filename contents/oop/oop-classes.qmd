@@ -1,6 +1,6 @@
 # Class Syntax
 
-I'll provide you with a comprehensive comparison of class syntax across TypeScript, C#, and Python. Let's explore each aspect systematically with code examples and diagrams.
+I'll provide you with a comprehensive comparison of class syntax across TypeScript, csharp, and Python. Let's explore each aspect systematically with code examples and diagrams.
 
 ## Basic Class Structure & Initialization
 
@@ -33,7 +33,7 @@ class Person {
 const person = new Person("Alice", 30);
 ```
 
-#### C#
+#### csharp
 
 ```csharp
 public class Person
@@ -87,6 +87,182 @@ person = Person("Alice", 30)
 
 :::
 
+### Multiple Constructor
+
+Different languages handle multiple constructors differently. Here's how to create objects with various initialization patterns:
+
+::: {.panel-tabset}
+#### TS
+
+```typescript
+class Employee {
+    public name: string;
+    public age: number;
+    public department: string;
+
+    // TypeScript doesn't support multiple constructors
+    // Use optional parameters and overloading signatures
+    constructor(name: string);
+    constructor(name: string, age: number);
+    constructor(name: string, age: number, department: string);
+    constructor(name: string, age?: number, department?: string) {
+        this.name = name;
+        this.age = age ?? 0;
+        this.department = department ?? "General";
+    }
+
+    // Static factory methods as an alternative
+    static createIntern(name: string): Employee {
+        return new Employee(name, 20, "Intern");
+    }
+
+    static createFromJson(json: string): Employee {
+        const data = JSON.parse(json);
+        return new Employee(data.name, data.age, data.department);
+    }
+}
+
+// Usage
+const emp1 = new Employee("Alice");
+const emp2 = new Employee("Bob", 25);
+const emp3 = new Employee("Charlie", 30, "Engineering");
+const intern = Employee.createIntern("David");
+const fromJson = Employee.createFromJson('{"name":"Eve","age":28,"department":"HR"}');
+```
+
+#### csharp
+
+```csharp
+public class Employee
+{
+    public string Name { get; set; }
+    public int Age { get; set; }
+    public string Department { get; set; }
+
+    // Default constructor
+    public Employee() : this("Unknown", 0, "General")
+    {
+    }
+
+    // Constructor with name only
+    public Employee(string name) : this(name, 0, "General")
+    {
+    }
+
+    // Constructor with name and age
+    public Employee(string name, int age) : this(name, age, "General")
+    {
+    }
+
+    // Full constructor
+    public Employee(string name, int age, string department)
+    {
+        Name = name;
+        Age = age;
+        Department = department;
+    }
+
+    // Copy constructor
+    public Employee(Employee other) : this(other.Name, other.Age, other.Department)
+    {
+    }
+
+    // Static factory method
+    public static Employee CreateIntern(string name)
+    {
+        return new Employee(name, 20, "Intern");
+    }
+
+    // Constructor with object initializer (alternative pattern)
+    public static Employee CreateFromDictionary(Dictionary<string, object> data)
+    {
+        return new Employee
+        {
+            Name = data["name"].ToString(),
+            Age = Convert.ToInt32(data["age"]),
+            Department = data["department"].ToString()
+        };
+    }
+}
+
+// Usage
+var emp1 = new Employee();
+var emp2 = new Employee("Alice");
+var emp3 = new Employee("Bob", 25);
+var emp4 = new Employee("Charlie", 30, "Engineering");
+var emp5 = new Employee(emp4);  // Copy constructor
+var intern = Employee.CreateIntern("David");
+```
+
+#### Python
+
+```python
+class Employee:
+    # Primary constructor
+    def __init__(self, name="Unknown", age=0, department="General"):
+        self.name = name
+        self.age = age
+        self.department = department
+
+    # Alternative constructor using @classmethod
+    @classmethod
+    def create_intern(cls, name):
+        """Create an intern with default settings"""
+        return cls(name, 20, "Intern")
+
+    @classmethod
+    def from_dict(cls, data):
+        """Create from dictionary"""
+        return cls(data['name'], data['age'], data['department'])
+
+    @classmethod
+    def from_string(cls, employee_str):
+        """Create from formatted string"""
+        name, age, dept = employee_str.split('-')
+        return cls(name, int(age), dept)
+
+    @classmethod
+    def copy_from(cls, other):
+        """Copy constructor"""
+        return cls(other.name, other.age, other.department)
+
+    # Using *args and **kwargs for flexible initialization
+    @classmethod
+    def create_flexible(cls, *args, **kwargs):
+        """Flexible factory method"""
+        if len(args) == 1:
+            return cls(args[0])  # Name only
+        elif len(args) == 2:
+            return cls(args[0], args[1])  # Name and age
+        elif kwargs:
+            return cls(**kwargs)  # Named arguments
+        return cls()  # Default
+
+# Usage
+emp1 = Employee()
+emp2 = Employee("Alice")
+emp3 = Employee("Bob", 25)
+emp4 = Employee("Charlie", 30, "Engineering")
+emp5 = Employee.create_intern("David")
+emp6 = Employee.from_dict({'name': 'Eve', 'age': 28, 'department': 'HR'})
+emp7 = Employee.from_string("Frank-35-Finance")
+emp8 = Employee.copy_from(emp4)
+emp9 = Employee.create_flexible("Grace", department="Marketing")
+```
+
+:::
+
+### Constructor Patterns Summary
+
+| Pattern | TypeScript | C# | Python |
+|---------|------------|-----|---------|
+| **Multiple Constructors** | Constructor overloading signatures | True multiple constructors | Default parameters + `@classmethod` |
+| **Optional Parameters** | `param?: type` | Optional parameters or overloads | Default values in `__init__` |
+| **Factory Methods** | Static methods | Static methods | `@classmethod` decorators |
+| **Copy Constructor** | Clone method or factory | Copy constructor | `@classmethod` with instance param |
+| **Named Constructors** | Static factory methods | Static methods | `@classmethod` with descriptive names |
+| **Builder Pattern** | Method chaining | Fluent interface | Method chaining or separate builder |
+
 
 ## Instance vs Class Members
 
@@ -135,7 +311,7 @@ class Counter {
 }
 ```
 
-#### C#
+#### csharp
 
 ```csharp
 public class Counter
@@ -206,7 +382,7 @@ class Counter:
 | Language   | Public | Private | Protected | Package/Internal |
 |------------|--------|---------|-----------|------------------|
 | TypeScript | public (default for members) | private | protected | - |
-| C#         | public | private (default) | protected | internal |
+| csharp         | public | private (default) | protected | internal |
 | Python     | name | __name (name mangling) | _name (convention) | - |
 
 ::: {.panel-tabset}
@@ -234,7 +410,7 @@ class BankAccount {
 }
 ```
 
-#### C#
+#### csharp
 
 ```csharp
 public class BankAccount
@@ -282,6 +458,291 @@ class BankAccount:
     def __validate(self):  # Private method
         return self.__balance >= 0
 ```
+:::
+
+
+## Getters and Setters
+
+Getters and setters (also called accessors and mutators) provide controlled access to private properties with validation and computed values.
+
+```
+┌──────────────────────────────────┐
+│         Class                     │
+│  ┌────────────────────────────┐  │
+│  │  Private Field: _value     │  │
+│  └────────────────────────────┘  │
+│         ▲              ▲          │
+│         │              │          │
+│    ┌────┴────┐    ┌───┴────┐    │
+│    │ Getter  │    │ Setter │    │
+│    │ (read)  │    │ (write)│    │
+│    └────┬────┘    └───┬────┘    │
+│         │              │          │
+│         └──────┬───────┘          │
+│                │                   │
+│         Public Interface          │
+└────────────────┼───────────────────┘
+                 │
+           External Access
+```
+
+::: {.panel-tabset}
+#### TS
+
+```typescript
+class Temperature {
+    private _celsius: number = 0;
+
+    // Getter
+    get celsius(): number {
+        return this._celsius;
+    }
+
+    // Setter with validation
+    set celsius(value: number) {
+        if (value < -273.15) {
+            throw new Error("Temperature below absolute zero!");
+        }
+        this._celsius = value;
+    }
+
+    // Computed property (getter only)
+    get fahrenheit(): number {
+        return (this._celsius * 9/5) + 32;
+    }
+
+    set fahrenheit(value: number) {
+        this.celsius = (value - 32) * 5/9;
+    }
+}
+
+// Usage
+const temp = new Temperature();
+temp.celsius = 25;           // Calls setter
+console.log(temp.celsius);   // Calls getter: 25
+console.log(temp.fahrenheit);// Calls getter: 77
+temp.fahrenheit = 68;        // Calls setter
+console.log(temp.celsius);   // 20
+```
+
+#### csharp
+
+```csharp
+public class Temperature
+{
+    private double _celsius = 0;
+
+    // Full property with backing field
+    public double Celsius
+    {
+        get { return _celsius; }
+        set
+        {
+            if (value < -273.15)
+                throw new ArgumentException("Temperature below absolute zero!");
+            _celsius = value;
+        }
+    }
+
+    // Auto-property (simplified)
+    public string Unit { get; set; } = "Celsius";
+
+    // Computed property (expression-bodied)
+    public double Fahrenheit
+    {
+        get => (_celsius * 9 / 5) + 32;
+        set => Celsius = (value - 32) * 5 / 9;
+    }
+
+    // Read-only property
+    public double Kelvin => _celsius + 273.15;
+
+    // Init-only property (C# 9.0+)
+    public string Location { get; init; }
+}
+
+// Usage
+var temp = new Temperature { Location = "Bangkok" };
+temp.Celsius = 25;           // Calls setter
+Console.WriteLine(temp.Celsius);   // Calls getter: 25
+Console.WriteLine(temp.Fahrenheit);// Calls getter: 77
+Console.WriteLine(temp.Kelvin);    // 298.15
+```
+
+#### Python
+
+```python
+class Temperature:
+    def __init__(self):
+        self._celsius = 0
+        self._location = None
+
+    # Getter using @property
+    @property
+    def celsius(self):
+        return self._celsius
+
+    # Setter with validation
+    @celsius.setter
+    def celsius(self, value):
+        if value < -273.15:
+            raise ValueError("Temperature below absolute zero!")
+        self._celsius = value
+
+    # Deleter (optional)
+    @celsius.deleter
+    def celsius(self):
+        del self._celsius
+
+    # Computed property
+    @property
+    def fahrenheit(self):
+        return (self._celsius * 9/5) + 32
+
+    @fahrenheit.setter
+    def fahrenheit(self, value):
+        self.celsius = (value - 32) * 5/9
+
+    # Read-only property (no setter)
+    @property
+    def kelvin(self):
+        return self._celsius + 273.15
+
+    # Property with manual getter/setter methods
+    def get_location(self):
+        return self._location
+
+    def set_location(self, value):
+        self._location = value
+
+# Usage
+temp = Temperature()
+temp.celsius = 25           # Calls setter
+print(temp.celsius)         # Calls getter: 25
+print(temp.fahrenheit)      # Calls getter: 77.0
+print(temp.kelvin)          # 298.15
+temp.fahrenheit = 68        # Calls setter
+print(temp.celsius)         # 20.0
+```
+
+:::
+
+### Property Patterns Comparison
+
+::: {.panel-tabset}
+#### TS
+
+```typescript
+class Product {
+    // Private field with getter/setter
+    private _price: number = 0;
+
+    get price(): number {
+        return this._price;
+    }
+
+    set price(value: number) {
+        if (value < 0) throw new Error("Price cannot be negative");
+        this._price = value;
+    }
+
+    // Read-only (getter only)
+    private _id: string = Math.random().toString();
+    get id(): string {
+        return this._id;
+    }
+
+    // Write-only (setter only) - less common
+    private _secretCode: string = "";
+    set secretCode(value: string) {
+        this._secretCode = value;
+    }
+}
+```
+
+#### csharp
+
+```csharp
+public class Product
+{
+    // Auto-property (most common)
+    public string Name { get; set; }
+
+    // Property with backing field and validation
+    private decimal _price;
+    public decimal Price
+    {
+        get => _price;
+        set
+        {
+            if (value < 0)
+                throw new ArgumentException("Price cannot be negative");
+            _price = value;
+        }
+    }
+
+    // Read-only auto-property
+    public string Id { get; } = Guid.NewGuid().ToString();
+
+    // Init-only property
+    public string Category { get; init; }
+
+    // Private setter (read-only externally)
+    public int Stock { get; private set; }
+
+    // Write-only property (less common)
+    private string _secretCode;
+    public string SecretCode
+    {
+        set => _secretCode = value;
+    }
+}
+```
+
+#### Python
+
+```python
+class Product:
+    def __init__(self):
+        self._price = 0
+        self._id = id(self)
+        self._secret_code = ""
+        self._stock = 0
+
+    # Read-write property
+    @property
+    def price(self):
+        return self._price
+
+    @price.setter
+    def price(self, value):
+        if value < 0:
+            raise ValueError("Price cannot be negative")
+        self._price = value
+
+    # Read-only property (no setter)
+    @property
+    def id(self):
+        return self._id
+
+    # Write-only (no getter) - uncommon pattern
+    @property
+    def secret_code(self):
+        raise AttributeError("Cannot read secret code")
+
+    @secret_code.setter
+    def secret_code(self, value):
+        self._secret_code = value
+
+    # Property with private setter (manual pattern)
+    @property
+    def stock(self):
+        return self._stock
+
+    def _set_stock(self, value):  # Private method
+        self._stock = value
+```
+
 :::
 
 
@@ -338,7 +799,7 @@ class Dog extends Animal {
 }
 ```
 
-#### C#
+#### csharp
 
 ```csharp
 // Base class
@@ -461,7 +922,7 @@ class Duck extends Bird implements Flyable, Swimmable {
 }
 ```
 
-#### C#
+#### csharp
 
 ```csharp
 // Interface
@@ -556,7 +1017,7 @@ class Duck(Bird, Flyable, Swimmable):
 
 ## Key Differences Summary
 
-| Feature | TypeScript | C# | Python |
+| Feature | TypeScript | csharp | Python |
 |---------|------------|-----|---------|
 | **Constructor** | `constructor()` | Same name as class | `__init__()` |
 | **Instance Reference** | `this` | `this` | `self` (explicit) |
