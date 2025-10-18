@@ -47,7 +47,8 @@ Here's the complete endpoint design:
 
 ### Detailed Examples with JSON
 
-#### 1. **GET /api/v1/books** - List all books
+#### `GET /api/v1/books` - List all books
+
 ```json
 // Response: 200 OK
 {
@@ -81,7 +82,8 @@ Here's the complete endpoint design:
 }
 ```
 
-#### 2. **GET /api/v1/books/{id}** - Get specific book
+#### `GET /api/v1/books/{id}` - Get specific book
+
 ```json
 // Response: 200 OK
 {
@@ -101,7 +103,8 @@ Here's the complete endpoint design:
 }
 ```
 
-#### 3. **POST /api/v1/books** - Create new book
+#### `POST /api/v1/books` Create new book
+
 ```json
 // Request Body:
 {
@@ -127,7 +130,8 @@ Here's the complete endpoint design:
 }
 ```
 
-#### 4. **PATCH /api/v1/books/{id}** - Partial update
+#### `PATCH /api/v1/books/{id}` - Partial update
+
 ```json
 // Request Body (only fields to update):
 {
@@ -150,6 +154,7 @@ Here's the complete endpoint design:
 ## API Versioning Strategies
 
 ### 1. **URI Path Versioning** (Most Common)
+
 ```
 ┌────────────────────────────────────────┐
 │  /api/v1/books                        │
@@ -163,6 +168,7 @@ Here's the complete endpoint design:
 ```
 
 ### 2. **Header Versioning**
+
 ```http
 GET /api/books HTTP/1.1
 Host: bookstore.com
@@ -170,6 +176,7 @@ Accept: application/vnd.bookstore.v2+json
 ```
 
 ### 3. **Query Parameter Versioning**
+
 ```
 GET /api/books?version=2
 ```
@@ -195,6 +202,7 @@ GET /api/books?version=2
 ## Best Practices
 
 ### 1. **Use Proper HTTP Status Codes**
+
 ```
 2xx Success:
   • 200 OK - Successful GET, PUT
@@ -214,6 +222,7 @@ GET /api/books?version=2
 ```
 
 ### 2. **Filtering, Sorting & Pagination**
+
 ```
 GET /api/v1/books?category=programming&sort=-price&page=2&limit=20
                   └────────┬──────────┘ └───┬────┘ └──────┬──────┘
@@ -221,6 +230,7 @@ GET /api/v1/books?category=programming&sort=-price&page=2&limit=20
 ```
 
 ### 3. **Nested Resources**
+
 ```
 /api/v1/authors/{authorId}/books     # Books by specific author
 /api/v1/orders/{orderId}/items       # Items in specific order
@@ -228,6 +238,7 @@ GET /api/v1/books?category=programming&sort=-price&page=2&limit=20
 ```
 
 ### 4. **Error Response Format**
+
 ```json
 {
   "error": {
@@ -242,6 +253,7 @@ GET /api/v1/books?category=programming&sort=-price&page=2&limit=20
 ```
 
 ### 5. **Consistent Response Envelope**
+
 ```json
 {
   "data": { /* actual response */ },
