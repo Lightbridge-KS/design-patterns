@@ -1,0 +1,256 @@
+# Monorepo React (vite) + DotNet
+
+I'll help you design a mono-repo structure for a React SPA frontend with a .NET Web API backend. This is a great architecture choice where your .NET API can serve both the static SPA files and API endpoints.
+
+## Recommended Mono-Repo Structure
+
+```
+my-app/
+│
+├── frontend/                    # React TypeScript SPA
+│   ├── src/
+│   │   ├── components/         # Reusable UI components
+│   │   ├── pages/             # Page components
+│   │   ├── services/          # API client services
+│   │   ├── hooks/             # Custom React hooks
+│   │   ├── utils/             # Utility functions
+│   │   ├── types/             # TypeScript type definitions
+│   │   ├── assets/            # Images, fonts, etc.
+│   │   ├── App.tsx
+│   │   ├── main.tsx           # Entry point
+│   │   └── index.css
+│   │
+│   ├── public/                # Static assets
+│   ├── dist/                  # Build output (ignored in git)
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── vite.config.ts         # Using Vite for build
+│   ├── .env.development
+│   └── .env.production
+│
+├── backend/                    # .NET Web API
+│   ├── MyApp.Api/             # Main API project
+│   │   ├── Controllers/
+│   │   ├── Models/
+│   │   ├── Services/
+│   │   ├── Data/              # DB context, repositories
+│   │   ├── Middleware/
+│   │   ├── Program.cs
+│   │   ├── appsettings.json
+│   │   ├── appsettings.Development.json
+│   │   ├── MyApp.Api.csproj
+│   │   └── wwwroot/           # Frontend build output goes here
+│   │
+│   ├── MyApp.Core/            # Domain models, interfaces
+│   │   ├── Entities/
+│   │   ├── Interfaces/
+│   │   └── MyApp.Core.csproj
+│   │
+│   ├── MyApp.Infrastructure/  # Data access, external services
+│   │   ├── Data/
+│   │   ├── Repositories/
+│   │   └── MyApp.Infrastructure.csproj
+│   │
+│   └── MyApp.sln              # Solution file
+│
+├── scripts/                    # Build and deployment scripts
+│   ├── build.sh               # Full build script
+│   ├── dev.sh                 # Development startup
+│   └── deploy.sh              # Deployment script
+│
+├── docs/                      # Project documentation
+├── .gitignore
+├── README.md
+└── package.json               # Root package.json for npm scripts
+```
+
+## Key Configuration Files
+
+### 1. Root `package.json` (Orchestration)
+
+```json
+{
+  "name": "my-app-monorepo",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend/MyApp.Api && dotnet watch run",
+    "build": "npm run build:frontend && npm run build:backend",
+    "build:frontend": "cd frontend && npm run build && npm run copy-to-backend",
+    "build:backend": "cd backend && dotnet build",
+    "clean": "rm -rf frontend/dist backend/MyApp.Api/wwwroot/*"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
+```
+
+### 2. Frontend `package.json` (Add copy script)
+
+```json
+{
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "copy-to-backend": "rm -rf ../backend/MyApp.Api/wwwroot/* && cp -r dist/* ../backend/MyApp.Api/wwwroot/"
+  }
+}
+```
+
+### 3. Backend `Program.cs` (Serve SPA)
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+var app = builder.Build();
+
+// Configure pipeline
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseHttpsRedirection();
+
+// Serve static files (React SPA)
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
+// API routes
+app.MapControllers();
+
+// Fallback to index.html for SPA routing
+app.MapFallbackToFile("index.html");
+
+app.Run();
+```
+
+## Development Workflow
+
+```
+┌─────────────────────────────────────────────────────  ┐
+│                  Development Mode                     │
+├───────────────────────────────────────────────────────┤
+│                                                       │
+│  ┌──────────────┐          ┌──────────────┐           │
+│  │   Frontend   │ :3000    │   Backend    │ :5000     │
+│  │   (Vite)     │ ──────>  │  (.NET API)  │           │
+│  └──────────────┘  proxy   └──────────────┘           │
+│                                                       │
+└───────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────┐
+│                  Production Build                   │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│  1. Build React → dist/                             │
+│  2. Copy dist/* → backend/wwwroot/                  │
+│  3. .NET serves both API + SPA from single port     │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+```
+
+## Frontend Vite Configuration
+
+```typescript
+// frontend/vite.config.ts
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    port: 3000,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true
+      }
+    }
+  },
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+    sourcemap: false
+  }
+})
+```
+
+## API Service Example (Frontend)
+
+```typescript
+// frontend/src/services/api.ts
+const API_BASE_URL = import.meta.env.DEV 
+  ? 'http://localhost:5000/api' 
+  : '/api';
+
+export class ApiService {
+  static async get<T>(endpoint: string): Promise<T> {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`);
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    return response.json();
+  }
+  
+  static async post<T>(endpoint: string, data: any): Promise<T> {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    return response.json();
+  }
+}
+```
+
+## Build Script Example
+
+```bash
+#!/bin/bash
+# scripts/build.sh
+
+echo "🏗️  Building Full Stack Application..."
+
+# Build frontend
+echo "📦 Building frontend..."
+cd frontend
+npm ci
+npm run build
+
+# Copy to backend wwwroot
+echo "📋 Copying frontend to wwwroot..."
+rm -rf ../backend/MyApp.Api/wwwroot/*
+cp -r dist/* ../backend/MyApp.Api/wwwroot/
+
+# Build backend
+echo "🔧 Building backend..."
+cd ../backend
+dotnet restore
+dotnet build -c Release
+
+echo "✅ Build complete!"
+```
+
+## Key Benefits of This Structure
+
+1. **Clear Separation**: Frontend and backend are clearly separated but in the same repo
+2. **Single Deployment**: Deploy as a single .NET application serving both API and SPA
+3. **Development Experience**: Hot reload for both frontend (Vite) and backend (dotnet watch)
+4. **Type Safety**: Share TypeScript types between frontend and generate from C# models
+5. **Scalability**: Can easily split into microservices later if needed
+
+## Additional Tips
+
+1. **Environment Variables**: Use `.env` files for frontend and `appsettings.json` for backend
+2. **Docker Support**: Add `Dockerfile` in root for containerization
+3. **CI/CD**: Use GitHub Actions to automate builds and deployments
+4. **Testing**: Add `frontend/tests/` and `backend/MyApp.Tests/` directories
+5. **Shared Types**: Consider using tools like NSwag to generate TypeScript clients from your C# API

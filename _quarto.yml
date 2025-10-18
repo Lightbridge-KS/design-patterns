@@ -32,6 +32,8 @@ book:
       chapters: 
         - "contents/repo-architect/monorepos_reactvite_fastapi.qmd"
         - "contents/repo-architect/monorepos_react-nextjs-fastapi.qmd"
+        - "contents/repo-architect/monorepos_reactvite_dotnet.qmd"
+        - "contents/repo-architect/monorepos_react-nextjs_dotnet.qmd"
         
 bibliography: references.bib
 

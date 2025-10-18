@@ -1,0 +1,498 @@
+# Monorepo Next JS + DotNet
+
+I'll help you redesign the mono-repo structure using Next.js with TypeScript configured for SPA/CSR mode with a .NET Web API backend.
+
+## Recommended Mono-Repo Structure with Next.js
+
+```
+my-app/
+│
+├── frontend/                    # Next.js TypeScript SPA
+│   ├── app/                    # App Router (Next.js 13+)
+│   │   ├── layout.tsx         # Root layout
+│   │   ├── page.tsx           # Home page
+│   │   ├── globals.css        # Global styles
+│   │   ├── api-proxy/         # Development proxy routes
+│   │   └── [...pages]/        # Dynamic routes for SPA
+│   │       └── page.tsx
+│   │
+│   ├── components/            # Reusable UI components
+│   │   ├── ui/               # Base UI components
+│   │   └── features/         # Feature-specific components
+│   │
+│   ├── lib/                   # Utilities and services
+│   │   ├── api/              # API client services
+│   │   ├── hooks/            # Custom React hooks
+│   │   ├── utils/            # Utility functions
+│   │   └── types/            # TypeScript definitions
+│   │
+│   ├── public/                # Static assets
+│   ├── out/                   # Build output (ignored in git)
+│   ├── next.config.js         # Next.js configuration
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── tailwind.config.ts     # Tailwind CSS config
+│   ├── postcss.config.js
+│   ├── .env.development
+│   └── .env.production
+│
+├── backend/                    # .NET Web API (same as before)
+│   ├── MyApp.Api/
+│   │   ├── Controllers/
+│   │   ├── Models/
+│   │   ├── Services/
+│   │   ├── Data/
+│   │   ├── Middleware/
+│   │   ├── Program.cs
+│   │   ├── appsettings.json
+│   │   ├── appsettings.Development.json
+│   │   ├── MyApp.Api.csproj
+│   │   └── wwwroot/           # Frontend build output goes here
+│   │
+│   ├── MyApp.Core/
+│   ├── MyApp.Infrastructure/
+│   └── MyApp.sln
+│
+├── scripts/
+│   ├── build.sh
+│   ├── dev.sh
+│   └── deploy.sh
+│
+├── docs/
+├── .gitignore
+├── README.md
+└── package.json               # Root orchestration
+```
+
+## Key Configuration Files
+
+### 1. Next.js Configuration for SPA/CSR
+
+```javascript
+// frontend/next.config.js
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  // Enable static exports for SPA
+  output: 'export',
+  
+  // Disable image optimization (not available in static export)
+  images: {
+    unoptimized: true
+  },
+  
+  // SPA routing - all routes fallback to index.html
+  trailingSlash: true,
+  
+  // Output directory
+  distDir: 'out',
+  
+  // Development proxy to .NET API
+  async rewrites() {
+    return process.env.NODE_ENV === 'development' 
+      ? [
+          {
+            source: '/api/:path*',
+            destination: 'http://localhost:5000/api/:path*'
+          }
+        ]
+      : [];
+  }
+};
+
+module.exports = nextConfig;
+```
+
+### 2. Root Layout for SPA Mode
+
+```tsx
+// frontend/app/layout.tsx
+'use client';
+
+import { useEffect } from 'react';
+import './globals.css';
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  useEffect(() => {
+    // Force client-side rendering
+    if (typeof window !== 'undefined') {
+      console.log('SPA initialized');
+    }
+  }, []);
+
+  return (
+    <html lang="en">
+      <body>
+        <div id="app">{children}</div>
+      </body>
+    </html>
+  );
+}
+```
+
+### 3. Dynamic Catch-All Route for SPA
+
+```tsx
+// frontend/app/[...segments]/page.tsx
+'use client';
+
+import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
+
+// Dynamic imports for your route components
+const routes: Record<string, any> = {
+  '/dashboard': dynamic(() => import('@/components/features/Dashboard')),
+  '/users': dynamic(() => import('@/components/features/Users')),
+  '/settings': dynamic(() => import('@/components/features/Settings')),
+};
+
+export default function DynamicPage() {
+  const pathname = usePathname();
+  const [Component, setComponent] = useState<any>(null);
+
+  useEffect(() => {
+    const RouteComponent = routes[pathname] || (() => <div>404 - Not Found</div>);
+    setComponent(() => RouteComponent);
+  }, [pathname]);
+
+  if (!Component) return <div>Loading...</div>;
+
+  return <Component />;
+}
+```
+
+### 4. Package.json Scripts
+
+```json
+// frontend/package.json
+{
+  "name": "frontend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "export": "npm run build && npm run copy-to-backend",
+    "copy-to-backend": "rm -rf ../backend/MyApp.Api/wwwroot/* && cp -r out/* ../backend/MyApp.Api/wwwroot/",
+    "start": "npx serve out",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "^14.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "axios": "^1.6.0",
+    "@tanstack/react-query": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.3.0",
+    "tailwindcss": "^3.4.0",
+    "autoprefixer": "^10.4.0",
+    "postcss": "^8.4.0",
+    "eslint": "^8.0.0",
+    "eslint-config-next": "^14.0.0"
+  }
+}
+```
+
+### 5. Root Orchestration
+
+```json
+// Root package.json
+{
+  "name": "my-app-monorepo",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend/MyApp.Api && dotnet watch run",
+    "build": "npm run build:frontend && npm run build:backend",
+    "build:frontend": "cd frontend && npm run export",
+    "build:backend": "cd backend && dotnet build -c Release",
+    "clean": "rm -rf frontend/out backend/MyApp.Api/wwwroot/*",
+    "start:prod": "cd backend/MyApp.Api && dotnet run -c Release"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
+```
+
+### 6. API Service with Next.js
+
+```typescript
+// frontend/lib/api/client.ts
+import axios, { AxiosInstance } from 'axios';
+
+class ApiClient {
+  private client: AxiosInstance;
+
+  constructor() {
+    const baseURL = process.env.NEXT_PUBLIC_API_URL || '/api';
+    
+    this.client = axios.create({
+      baseURL,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    // Request interceptor
+    this.client.interceptors.request.use(
+      (config) => {
+        // Add auth token if available
+        const token = localStorage.getItem('token');
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+      },
+      (error) => Promise.reject(error)
+    );
+
+    // Response interceptor
+    this.client.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (error.response?.status === 401) {
+          // Handle unauthorized
+          window.location.href = '/login';
+        }
+        return Promise.reject(error);
+      }
+    );
+  }
+
+  async get<T>(url: string): Promise<T> {
+    const response = await this.client.get<T>(url);
+    return response.data;
+  }
+
+  async post<T>(url: string, data?: any): Promise<T> {
+    const response = await this.client.post<T>(url, data);
+    return response.data;
+  }
+
+  async put<T>(url: string, data?: any): Promise<T> {
+    const response = await this.client.put<T>(url, data);
+    return response.data;
+  }
+
+  async delete<T>(url: string): Promise<T> {
+    const response = await this.client.delete<T>(url);
+    return response.data;
+  }
+}
+
+export const apiClient = new ApiClient();
+```
+
+### 7. React Query Setup
+
+```tsx
+// frontend/app/providers.tsx
+'use client';
+
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { useState } from 'react';
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  const [queryClient] = useState(
+    () => new QueryClient({
+      defaultOptions: {
+        queries: {
+          staleTime: 60 * 1000, // 1 minute
+          gcTime: 5 * 60 * 1000, // 5 minutes
+        },
+      },
+    })
+  );
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+      <ReactQueryDevtools initialIsOpen={false} />
+    </QueryClientProvider>
+  );
+}
+```
+
+### 8. Backend Program.cs (Same with minor adjustments)
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("Development",
+        policy =>
+        {
+            policy.WithOrigins("http://localhost:3000")
+                  .AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials();
+        });
+});
+
+var app = builder.Build();
+
+// Configure pipeline
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+    app.UseCors("Development");
+}
+
+app.UseHttpsRedirection();
+
+// Serve static files from wwwroot (Next.js SPA)
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
+// API routes
+app.MapControllers();
+
+// SPA fallback - IMPORTANT for client-side routing
+app.MapFallbackToFile("index.html");
+
+app.Run();
+```
+
+## Development & Production Flow
+
+```
+┌────────────────────────────────────────────────────────┐
+│                    Development Mode                      │
+├────────────────────────────────────────────────────────┤
+│                                                         │
+│  ┌───────────────┐         ┌────────────────┐         │
+│  │   Next.js     │ :3000   │   .NET API     │ :5000   │
+│  │   Dev Server  │ ──────> │   Web API      │         │
+│  └───────────────┘  proxy  └────────────────┘         │
+│                                                         │
+│  • HMR (Hot Module Replacement)                        │
+│  • API proxy via next.config.js                        │
+│  • React DevTools + Query DevTools                     │
+│                                                         │
+└────────────────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────────────────┐
+│                    Production Build                      │
+├────────────────────────────────────────────────────────┤
+│                                                         │
+│  1. next build → Compiles TypeScript                   │
+│  2. next export → Static files in out/                 │
+│  3. Copy out/* → backend/wwwroot/                      │
+│  4. dotnet build → Compile .NET                        │
+│  5. Single deployment unit on port 5000                │
+│                                                         │
+│  ┌────────────────────────────────────┐               │
+│  │        .NET Kestrel Server          │               │
+│  │  ┌──────────────┬──────────────┐   │               │
+│  │  │  Static SPA  │   Web API     │   │               │
+│  │  │  (wwwroot)   │  (/api/*)     │   │               │
+│  │  └──────────────┴──────────────┘   │               │
+│  └────────────────────────────────────┘               │
+│                                                         │
+└────────────────────────────────────────────────────────┘
+```
+
+## Build Script
+
+```bash
+#!/bin/bash
+# scripts/build.sh
+
+echo "🚀 Building Next.js + .NET Application..."
+
+# Build frontend
+echo "📦 Building Next.js frontend..."
+cd frontend
+npm ci
+npm run build
+
+# Copy to backend wwwroot
+echo "📋 Copying static files to wwwroot..."
+rm -rf ../backend/MyApp.Api/wwwroot/*
+cp -r out/* ../backend/MyApp.Api/wwwroot/
+
+# Ensure proper SPA routing
+echo "⚙️  Configuring SPA fallback..."
+if [ ! -f "../backend/MyApp.Api/wwwroot/404.html" ]; then
+    cp ../backend/MyApp.Api/wwwroot/index.html ../backend/MyApp.Api/wwwroot/404.html
+fi
+
+# Build backend
+echo "🔧 Building .NET backend..."
+cd ../backend
+dotnet restore
+dotnet build -c Release
+dotnet publish -c Release -o ./publish
+
+echo "✅ Build complete! Output in backend/publish/"
+```
+
+## TypeScript Configuration
+
+```json
+// frontend/tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"],
+      "@/components/*": ["components/*"],
+      "@/lib/*": ["lib/*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}
+```
+
+## Key Differences from Vite Setup
+
+1. **App Router**: Using Next.js 14+ App Router with `'use client'` directives for CSR
+2. **Static Export**: Configured with `output: 'export'` for pure static files
+3. **Dynamic Routing**: Catch-all route handles client-side navigation
+4. **No SSR/SSG**: All components marked as client components
+5. **Build Output**: Uses `out/` directory instead of `dist/`
+
+## Additional Tips
+
+1. **State Management**: Consider Zustand or Redux Toolkit for complex state
+2. **Form Handling**: Use React Hook Form with Zod for validation
+3. **UI Library**: Shadcn/ui works great with Next.js and Tailwind
+4. **Testing**: Add Jest and React Testing Library
+5. **Type Generation**: Use NSwag or OpenAPI Generator for TypeScript types from C# models
