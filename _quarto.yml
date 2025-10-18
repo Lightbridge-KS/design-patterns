@@ -27,6 +27,7 @@ book:
     - part: API 
       chapters: 
         - "contents/api/restapi-design-bookstore.qmd"
+        - "contents/api/restapi-ml-medical-image.qmd"
         
 bibliography: references.bib
 

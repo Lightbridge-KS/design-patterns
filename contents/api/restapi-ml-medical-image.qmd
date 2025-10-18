@@ -1,0 +1,366 @@
+# REST API (ML Medical Image)
+
+::: {.callout-note appearance="default" collapse="false"}
+**Q:** Teach me about how to design the REST API endpoints for medical imaging ML service that involves getting predictions from medical images. Use the best practice in the industry. 
+
+The API would wrap:
+
+* CT brain for stroke detection — one model to detect stroke
+* CXR (chest x-ray) analysis — multiple models to detect each CXR findings (let's say 3 findings: "tb", "opacity", "pneumothorax")
+
+That works for synchronous predictions (get results fast, often called for one image/series at a time) and asynchronous predictions (batch processing, slower, often called for multiple images/series)
+
+How'd you design these kind of API endpoints, HTTP methods, and request/response JSON data. Also, show me how versioning works for the API.
+:::
+
+
+I'll walk you through designing a production-grade REST API for medical imaging ML services. Let's build this systematically with best practices from both the software and healthcare industries.
+
+## Overall Architecture Pattern
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   API Gateway                            │
+│                    (v1, v2)                              │
+└─────────┬───────────────────────────────┬───────────────┘
+          │                               │
+          ▼                               ▼
+┌─────────────────────┐         ┌─────────────────────┐
+│  Synchronous API    │         │  Asynchronous API   │
+│   (Fast, <30s)      │         │  (Batch, Queue)     │
+└─────────────────────┘         └─────────────────────┘
+          │                               │
+          ▼                               ▼
+┌─────────────────────────────────────────────────────────┐
+│                   ML Model Services                      │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
+│  │ CT Stroke    │  │ CXR TB       │  │ CXR Opacity  │  │
+│  │   Model      │  │   Model      │  │   Model      │  │
+│  └──────────────┘  └──────────────┘  └──────────────┘  │
+└─────────────────────────────────────────────────────────┘
+```
+
+## API Endpoint Design
+
+### 1. Resource Structure
+
+```python
+# Resource hierarchy
+/api/v1/
+├── /studies/                    # DICOM study level
+│   ├── /{study_id}/predictions  # All predictions for a study
+│   └── /{study_id}/series/      # Series within a study
+│       └── /{series_id}/predictions
+├── /predictions/                 # Direct prediction endpoints
+│   ├── /ct-brain-stroke/        # CT stroke detection
+│   └── /cxr/                    # CXR analysis (all findings)
+│       ├── /tb/                 # Individual finding endpoints
+│       ├── /opacity/
+│       └── /pneumothorax/
+└── /jobs/                        # Async job management
+    └── /{job_id}/
+```
+
+### 2. Synchronous Endpoints
+
+**CT Brain Stroke Detection:**
+```http
+POST /api/v1/predictions/ct-brain-stroke
+Content-Type: multipart/form-data
+
+Request:
+------
+Form Data:
+- images: [DICOM files or array of image files]
+- metadata: {
+    "patient_id": "PAT123",
+    "study_id": "STU456", 
+    "series_id": "SER789",
+    "urgency": "stat"  // stat | routine
+  }
+
+Response (200 OK):
+------
+{
+  "prediction_id": "pred_abc123",
+  "timestamp": "2025-01-15T10:30:00Z",
+  "model_version": "stroke_model_v2.1",
+  "results": {
+    "stroke_detected": true,
+    "confidence": 0.92,
+    "stroke_type": "ischemic",
+    "location": "left_mca_territory",
+    "volume_ml": 45.2,
+    "aspects_score": 7,
+    "findings": [
+      {
+        "type": "hypodense_area",
+        "location": "left_frontal_lobe",
+        "slice_numbers": [12, 13, 14, 15]
+      }
+    ]
+  },
+  "processing_time_ms": 2340,
+  "metadata": {
+    "study_id": "STU456",
+    "series_id": "SER789"
+  }
+}
+```
+
+**CXR Analysis (Multiple Models):**
+```http
+POST /api/v1/predictions/cxr
+Content-Type: multipart/form-data
+
+Request:
+------
+Form Data:
+- image: [DICOM or image file]
+- models: ["tb", "opacity", "pneumothorax"]  // Optional, defaults to all
+- metadata: {
+    "patient_id": "PAT123",
+    "study_id": "STU456",
+    "view": "PA"  // PA | AP | lateral
+  }
+
+Response (200 OK):
+------
+{
+  "prediction_id": "pred_xyz789",
+  "timestamp": "2025-01-15T10:32:00Z",
+  "results": {
+    "tb": {
+      "detected": false,
+      "confidence": 0.95,
+      "model_version": "tb_model_v1.3"
+    },
+    "opacity": {
+      "detected": true,
+      "confidence": 0.88,
+      "location": "right_upper_lobe",
+      "pattern": "consolidation",
+      "model_version": "opacity_model_v2.0"
+    },
+    "pneumothorax": {
+      "detected": false,
+      "confidence": 0.97,
+      "model_version": "ptx_model_v1.1"
+    }
+  },
+  "processing_time_ms": 1560,
+  "metadata": {
+    "study_id": "STU456",
+    "view": "PA"
+  }
+}
+```
+
+### 3. Asynchronous Endpoints (Batch Processing)
+
+**Submit Batch Job:**
+```http
+POST /api/v1/jobs
+Content-Type: application/json
+
+Request:
+------
+{
+  "job_type": "batch_prediction",
+  "priority": "normal",  // urgent | normal | low
+  "callback_url": "https://your-system.com/webhook",
+  "tasks": [
+    {
+      "task_id": "task_001",
+      "prediction_type": "ct-brain-stroke",
+      "input_location": "s3://bucket/study1/",
+      "metadata": {
+        "study_id": "STU001",
+        "patient_id": "PAT001"
+      }
+    },
+    {
+      "task_id": "task_002", 
+      "prediction_type": "cxr",
+      "models": ["tb", "opacity"],
+      "input_location": "s3://bucket/cxr_batch/",
+      "metadata": {
+        "study_ids": ["STU002", "STU003", "STU004"]
+      }
+    }
+  ],
+  "notification_preferences": {
+    "on_complete": true,
+    "on_error": true,
+    "on_partial": false
+  }
+}
+
+Response (202 Accepted):
+------
+{
+  "job_id": "job_klm456",
+  "status": "queued",
+  "created_at": "2025-01-15T10:35:00Z",
+  "estimated_completion": "2025-01-15T10:45:00Z",
+  "total_tasks": 2,
+  "queue_position": 3,
+  "links": {
+    "self": "/api/v1/jobs/job_klm456",
+    "cancel": "/api/v1/jobs/job_klm456/cancel",
+    "results": "/api/v1/jobs/job_klm456/results"
+  }
+}
+```
+
+**Check Job Status:**
+```http
+GET /api/v1/jobs/{job_id}
+
+Response (200 OK):
+------
+{
+  "job_id": "job_klm456",
+  "status": "processing",  // queued | processing | completed | failed | partial
+  "progress": {
+    "total_tasks": 2,
+    "completed_tasks": 1,
+    "failed_tasks": 0,
+    "percentage": 50
+  },
+  "tasks": [
+    {
+      "task_id": "task_001",
+      "status": "completed",
+      "completed_at": "2025-01-15T10:40:00Z",
+      "result_location": "/api/v1/jobs/job_klm456/results/task_001"
+    },
+    {
+      "task_id": "task_002",
+      "status": "processing",
+      "started_at": "2025-01-15T10:40:00Z",
+      "progress_percentage": 30
+    }
+  ],
+  "created_at": "2025-01-15T10:35:00Z",
+  "updated_at": "2025-01-15T10:42:00Z"
+}
+```
+
+## API Versioning Strategies
+
+### 1. URL Path Versioning (Recommended for Medical APIs)
+```
+/api/v1/predictions/ct-brain-stroke
+/api/v2/predictions/ct-brain-stroke  # New version
+```
+
+**Advantages:**
+- Most explicit and clear
+- Easy to deprecate old versions
+- Cache-friendly
+- Good for regulatory compliance tracking
+
+### 2. Header Versioning
+```http
+GET /api/predictions/ct-brain-stroke
+Accept: application/vnd.medical-ml.v2+json
+X-API-Version: 2
+```
+
+### 3. Version Migration Strategy
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│    v1.0     │────▶│    v1.1     │────▶│    v2.0     │
+│  (Active)   │     │ (Deprecated)│     │  (Active)   │
+└─────────────┘     └─────────────┘     └─────────────┘
+     │                     │                     │
+     ▼                     ▼                     ▼
+  6 months            3 months              Current
+    ago                 ago
+```
+
+## Error Handling
+
+```http
+# Standard error response
+{
+  "error": {
+    "code": "INVALID_IMAGE_FORMAT",
+    "message": "The uploaded image is not a valid DICOM file",
+    "details": {
+      "expected_formats": ["DICOM", "PNG", "JPEG"],
+      "received_format": "BMP",
+      "field": "images[0]"
+    },
+    "trace_id": "trace_xyz123",
+    "documentation_url": "/api/docs/errors#INVALID_IMAGE_FORMAT"
+  }
+}
+
+# HTTP Status Codes
+200 OK              - Successful prediction
+202 Accepted        - Async job accepted
+400 Bad Request     - Invalid input
+401 Unauthorized    - Missing/invalid auth
+403 Forbidden       - No access to resource
+404 Not Found       - Resource not found
+413 Payload Too Large - Image too large
+422 Unprocessable   - Valid format but semantic errors
+429 Too Many Requests - Rate limited
+500 Internal Error  - Server error
+503 Service Unavailable - Model temporarily down
+```
+
+## Security & Compliance Considerations
+
+```python
+# Request headers for medical data
+Headers = {
+    "Authorization": "Bearer {token}",
+    "X-Request-ID": "req_123",  # Audit trail
+    "X-Patient-Consent": "true",  # GDPR/HIPAA
+    "X-Encryption": "AES256",  # PHI encryption
+    "X-Institution-ID": "HOSP001"  # Multi-tenancy
+}
+```
+
+## Rate Limiting
+
+```http
+# Response headers
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 95
+X-RateLimit-Reset: 1642248000
+X-RateLimit-Resource: predictions_sync
+```
+
+## WebSocket for Real-time Updates (Async Jobs)
+
+```javascript
+// WebSocket connection for job updates
+ws://api.medical-ml.com/v1/jobs/{job_id}/stream
+
+// Message format
+{
+  "event": "task_completed",
+  "task_id": "task_001",
+  "progress": 50,
+  "timestamp": "2025-01-15T10:40:00Z"
+}
+```
+
+## Best Practices Summary
+
+1. **Use RESTful resource naming** - Nouns, not verbs
+2. **Implement idempotency** - Use idempotency keys for POST requests
+3. **Version from day one** - Start with v1, plan migration strategy
+4. **Async for heavy processing** - >30 seconds → async pattern
+5. **Standardize responses** - Consistent structure across endpoints
+6. **Include metadata** - Model versions, processing times, confidence scores
+7. **Implement pagination** - For list endpoints
+8. **Use standard HTTP methods** - POST for predictions, GET for results
+9. **Audit everything** - Medical regulatory requirements
+10. **Handle partial failures** - Especially in batch processing
+
+This design provides a scalable, maintainable API that follows both REST best practices and medical imaging industry standards. The separation of sync/async patterns ensures good performance for both real-time clinical use and batch research processing.
