@@ -1,5 +1,9 @@
 # Monorepo Next JS + FastAPI
 
+**Example Templates:**
+
+- [**vintasoftware/nextjs-fastapi-template**](https://github.com/vintasoftware/nextjs-fastapi-template)
+
 Excellent choice! Next.js can be configured for SPA/CSR mode using `output: 'export'`. This gives you Next.js's excellent developer experience while maintaining a static SPA architecture.
 
 ## Monorepo Structure with Next.js + FastAPI
