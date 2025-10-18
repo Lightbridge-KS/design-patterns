@@ -28,6 +28,9 @@ book:
       chapters: 
         - "contents/api/restapi-design-bookstore.qmd"
         - "contents/api/restapi-ml-medical-image.qmd"
+    - part: Repository Architecture
+      chapters: 
+        - "img/repo-architect/monorepos_reactvite_fastapi.qmd"
         
 bibliography: references.bib
 

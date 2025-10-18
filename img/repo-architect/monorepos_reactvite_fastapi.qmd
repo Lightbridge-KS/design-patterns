@@ -1,0 +1,269 @@
+# Monorepo React (vite) + FastAPI
+
+For a Python backend that can serve both API endpoints and static files (similar to .NET WebAPI with `wwwroot/`), I'd recommend **FastAPI** as it's modern, performant, and has excellent developer experience similar to .NET WebAPI.
+
+## Python Backend Options Comparison
+
+```
+┌─────────────┬──────────────┬───────────┬──────────────┬─────────────┐
+│  Framework  │     Type     │   Speed   │   Learning   │  Best For   │
+│             │              │           │    Curve     │             │
+├─────────────┼──────────────┼───────────┼──────────────┼─────────────┤
+│   FastAPI   │   Modern     │   Fast    │   Moderate   │   APIs +    │
+│             │   Async      │   ★★★★★   │              │   SPAs      │
+├─────────────┼──────────────┼───────────┼──────────────┼─────────────┤
+│   Flask     │  Lightweight │  Moderate │     Easy     │   Simple    │
+│             │              │   ★★★     │              │   Apps      │
+├─────────────┼──────────────┼───────────┼──────────────┼─────────────┤
+│   Django    │ Full-stack   │  Moderate │     High     │  Full Web   │
+│             │              │   ★★★     │              │   Apps      │
+└─────────────┴──────────────┴───────────┴──────────────┴─────────────┘
+```
+
+## Recommended Monorepo Structure with FastAPI
+
+```
+my-app/
+│
+├── frontend/                   # React TypeScript SPA
+│   ├── src/
+│   │   ├── components/
+│   │   ├── pages/
+│   │   ├── services/          # API client services
+│   │   ├── hooks/
+│   │   ├── utils/
+│   │   ├── App.tsx
+│   │   └── main.tsx
+│   ├── public/
+│   ├── package.json
+│   ├── tsconfig.json
+│   ├── vite.config.ts         # Using Vite for build
+│   └── .env
+│
+├── backend/                    # Python FastAPI
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── main.py            # FastAPI app entry
+│   │   ├── api/               # API routes
+│   │   │   ├── __init__.py
+│   │   │   ├── v1/
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── endpoints/
+│   │   │   │   │   ├── users.py
+│   │   │   │   │   └── items.py
+│   │   │   │   └── api.py
+│   │   ├── core/              # Core configs
+│   │   │   ├── __init__.py
+│   │   │   ├── config.py
+│   │   │   └── security.py
+│   │   ├── models/            # Pydantic models
+│   │   │   ├── __init__.py
+│   │   │   ├── user.py
+│   │   │   └── item.py
+│   │   ├── schemas/           # Request/Response schemas
+│   │   ├── services/          # Business logic
+│   │   └── db/                # Database related
+│   │       ├── __init__.py
+│   │       └── database.py
+│   │
+│   ├── static/                # ← Built frontend goes here
+│   │   └── (frontend build output)
+│   │
+│   ├── requirements.txt
+│   ├── .env
+│   └── pyproject.toml
+│
+├── scripts/                   # Build & deployment scripts
+│   ├── build.sh
+│   └── deploy.sh
+│
+├── docker-compose.yml         # For local development
+├── Dockerfile.frontend
+├── Dockerfile.backend
+├── .gitignore
+├── README.md
+└── Makefile                   # Common tasks automation
+```
+
+## FastAPI Backend Setup
+
+Here's a basic FastAPI setup that serves both API and static files:
+
+```python
+# backend/app/main.py
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
+from pathlib import Path
+
+from app.api.v1.api import api_router
+from app.core.config import settings
+
+app = FastAPI(
+    title="My App API",
+    version="1.0.0",
+    docs_url="/api/docs",      # Swagger UI
+    redoc_url="/api/redoc",    # ReDoc
+    openapi_url="/api/openapi.json"
+)
+
+# CORS middleware for development
+if settings.BACKEND_CORS_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.BACKEND_CORS_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+# API routes
+app.include_router(api_router, prefix="/api/v1")
+
+# Serve static files (React build)
+static_path = Path(__file__).parent.parent / "static"
+if static_path.exists():
+    app.mount("/assets", StaticFiles(directory=static_path), name="static")
+    
+    # Catch-all route for React Router (client-side routing)
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        # Check if requesting an API route
+        if full_path.startswith("api/"):
+            return {"error": "Not found"}, 404
+            
+        # Serve index.html for all non-API routes
+        index_path = static_path / "index.html"
+        if index_path.exists():
+            return FileResponse(index_path)
+        return {"error": "Frontend not built"}, 404
+```
+
+## Build Process Flow
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   Frontend   │────▶│    Build     │────▶│   Backend    │
+│  Development │     │   (Vite)     │     │    Static    │
+│   npm run    │     │              │     │    Folder    │
+│     dev      │     │ npm run build│     │   /static    │
+└──────────────┘     └──────────────┘     └──────────────┘
+                            │
+                            ▼
+                    ┌──────────────┐
+                    │  dist/ or    │
+                    │  out/ folder │
+                    └──────────────┘
+                            │
+                            ▼
+                    ┌──────────────┐
+                    │  Copy to     │
+                    │backend/static│
+                    └──────────────┘
+```
+
+## Package.json Scripts Setup
+
+```json
+// frontend/package.json
+{
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "build:prod": "npm run build && npm run copy-to-backend",
+    "copy-to-backend": "rm -rf ../backend/static/* && cp -r dist/* ../backend/static/",
+    "preview": "vite preview"
+  }
+}
+```
+
+## Makefile for Automation
+
+```makefile
+# Makefile (root directory)
+.PHONY: help dev-frontend dev-backend dev build deploy
+
+help:
+	@echo "Available commands:"
+	@echo "  make dev           - Run both frontend and backend"
+	@echo "  make build         - Build frontend and copy to backend"
+	@echo "  make deploy        - Deploy to production"
+
+dev-frontend:
+	cd frontend && npm run dev
+
+dev-backend:
+	cd backend && uvicorn app.main:app --reload --port 8000
+
+dev:
+	make -j 2 dev-frontend dev-backend
+
+build:
+	cd frontend && npm run build
+	rm -rf backend/static/*
+	cp -r frontend/dist/* backend/static/
+
+run-prod:
+	cd backend && uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+## Required Python Packages
+
+```txt
+# backend/requirements.txt
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-dotenv==1.0.0
+pydantic==2.5.3
+pydantic-settings==2.1.0
+
+# Optional but recommended
+sqlalchemy==2.0.25      # For database ORM
+asyncpg==0.29.0         # For PostgreSQL async
+redis==5.0.1            # For caching
+httpx==0.26.0           # For HTTP client
+pytest==7.4.4           # For testing
+```
+
+## Development Workflow
+
+1. **Development Mode:**
+   - Frontend: `http://localhost:5173` (Vite dev server)
+   - Backend: `http://localhost:8000` (FastAPI)
+   - Use proxy in Vite to forward API calls
+
+2. **Production Mode:**
+   - Build frontend: `npm run build`
+   - Copy to backend static folder
+   - Serve everything from FastAPI at `http://localhost:8000`
+
+## Vite Config for API Proxy
+
+```typescript
+// frontend/vite.config.ts
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      }
+    }
+  }
+})
+```
+
+## Key Advantages of This Setup
+
+1. **Single Deployment Unit**: Deploy one Python app that serves everything
+2. **Shared Domain**: No CORS issues in production
+3. **Type Safety**: FastAPI generates OpenAPI schema that can generate TypeScript types
+4. **Performance**: FastAPI is one of the fastest Python frameworks
+5. **Developer Experience**: Hot reload in development, automatic API docs
+
+This architecture is very similar to .NET WebAPI with `wwwroot/`, giving you a familiar pattern while leveraging Python's ecosystem. FastAPI specifically was designed with modern API development in mind, making it an excellent choice for your use case.
