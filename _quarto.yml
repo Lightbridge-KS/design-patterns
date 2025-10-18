@@ -30,6 +30,7 @@ book:
         - "contents/api/restapi-ml-medical-image.qmd"
     - part: Repository Architecture
       chapters: 
+        - "contents/repo-architect/microservice-acme-ai.qmd"
         - "contents/repo-architect/monorepos_multi-client.qmd"
         - "contents/repo-architect/monorepos_reactvite_fastapi.qmd"
         - "contents/repo-architect/monorepos_react-nextjs-fastapi.qmd"
