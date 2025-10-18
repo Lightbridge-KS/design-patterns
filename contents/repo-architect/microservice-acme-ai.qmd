@@ -1,5 +1,13 @@
 # Micro-service "Acme AI Solution"
 
+::: {.callout-note appearance="default" collapse="false"}
+**Q:** Let's say I want to build micro-service system architecture deployed to the intranet of local hospital. 
+
+Some service may be just backend only (e.g, .NET Web API or Python FastAPI), some may be frontend+backend (e.g., React JS with SPA + Python FastAPI), and some may be pure frontend (e.g., React JS with SPA). Also, databases (SQL, NoSQL) are involve in this picture. 
+
+Can this possible? Please give example design of such system architecture for "Acme AI Solution"  inc. (a generative AI company for medical use) that deployed to a local hospital.
+:::
+
 Absolutely! This is not only possible but a very common architecture pattern for modern healthcare systems. Let me design a comprehensive microservice architecture for "Acme AI Solution" deployed in a hospital intranet.
 
 ## System Architecture Overview
