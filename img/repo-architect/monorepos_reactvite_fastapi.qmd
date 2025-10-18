@@ -1,5 +1,13 @@
 # Monorepo React (vite) + FastAPI
 
+::: {.callout-note appearance="default" collapse="false"}
+**Q:** I want to create a "mono-repo" app architecture which use React JS/TS as frontend that builds HTML/CSS/JS to static SPA with CSR (in `dist/` or `out/` folder). 
+
+I've known that I can use dotnet webapi as backend, which I can put the frontend SPA code in `wwwroot/` folder. 
+
+What about Python as backend? Please suggest repository structure design and which Python package to use that can serve API with static file (similar to using dotnet webapi).
+:::
+
 For a Python backend that can serve both API endpoints and static files (similar to .NET WebAPI with `wwwroot/`), I'd recommend **FastAPI** as it's modern, performant, and has excellent developer experience similar to .NET WebAPI.
 
 ## Python Backend Options Comparison
