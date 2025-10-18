@@ -1,0 +1,183 @@
+<mxfile host="app.diagrams.net" agent="Claude Code" version="24.0.0">
+  <diagram name="Hospital Microservice Architecture" id="hospital-arch">
+    <mxGraphModel dx="1422" dy="794" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="1800" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- Hospital Intranet Container -->
+        <mxCell id="hospital-container" value="HOSPITAL INTRANET" style="swimlane;whiteSpace=wrap;html=1;fillColor=#2d3748;strokeColor=#718096;fontColor=#FFFFFF;fontSize=14;fontStyle=1;startSize=40;horizontal=1;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="1320" height="1720" as="geometry" />
+        </mxCell>
+
+        <!-- Presentation Layer Container -->
+        <mxCell id="presentation-layer" value="PRESENTATION LAYER" style="swimlane;whiteSpace=wrap;html=1;fillColor=#1a202c;strokeColor=#4a5568;fontColor=#FFFFFF;fontSize=12;fontStyle=1;startSize=35;" vertex="1" parent="hospital-container">
+          <mxGeometry x="30" y="60" width="1260" height="180" as="geometry" />
+        </mxCell>
+
+        <!-- Frontend Services -->
+        <mxCell id="radiology-portal" value="Radiology&#xa;AI Portal&#xa;(React SPA)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#4a5568;strokeColor=#718096;fontColor=#FFFFFF;fontSize=11;align=center;" vertex="1" parent="presentation-layer">
+          <mxGeometry x="40" y="55" width="160" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="clinical-dashboard" value="Clinical&#xa;Dashboard&#xa;(React SPA)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#4a5568;strokeColor=#718096;fontColor=#FFFFFF;fontSize=11;align=center;" vertex="1" parent="presentation-layer">
+          <mxGeometry x="260" y="55" width="160" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="admin-portal" value="Admin&#xa;Portal&#xa;(React+FastAPI)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#4a5568;strokeColor=#718096;fontColor=#FFFFFF;fontSize=11;align=center;" vertex="1" parent="presentation-layer">
+          <mxGeometry x="480" y="55" width="160" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="mobile-app" value="Mobile&#xa;App&#xa;(Flutter)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#4a5568;strokeColor=#718096;fontColor=#FFFFFF;fontSize=11;align=center;" vertex="1" parent="presentation-layer">
+          <mxGeometry x="700" y="55" width="160" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- NGINX / API Gateway -->
+        <mxCell id="nginx-gateway" value="NGINX REVERSE PROXY / API GATEWAY&#xa;(Load Balancing, SSL Termination, Routing)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#2d3748;strokeColor=#4a5568;fontColor=#FFFFFF;fontSize=12;fontStyle=1;align=center;" vertex="1" parent="hospital-container">
+          <mxGeometry x="30" y="280" width="1260" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Service Mesh -->
+        <mxCell id="service-mesh" value="SERVICE MESH (Istio/Linkerd)&#xa;(Service Discovery, Circuit Breaker, mTLS)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#2d3748;strokeColor=#4a5568;fontColor=#FFFFFF;fontSize=12;fontStyle=1;align=center;" vertex="1" parent="hospital-container">
+          <mxGeometry x="30" y="400" width="1260" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Microservices Layer Container -->
+        <mxCell id="microservices-layer" value="MICROSERVICES LAYER" style="swimlane;whiteSpace=wrap;html=1;fillColor=#1a202c;strokeColor=#4a5568;fontColor=#FFFFFF;fontSize=12;fontStyle=1;startSize=35;" vertex="1" parent="hospital-container">
+          <mxGeometry x="30" y="520" width="1260" height="340" as="geometry" />
+        </mxCell>
+
+        <!-- Row 1 of Microservices -->
+        <mxCell id="ai-inference" value="AI Inference&#xa;Service&#xa;(Python FastAPI)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#4a5568;strokeColor=#718096;fontColor=#FFFFFF;fontSize=11;align=center;" vertex="1" parent="microservices-layer">
+          <mxGeometry x="40" y="55" width="180" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="image-analysis" value="Image Analysis&#xa;Service&#xa;(.NET Web API)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#4a5568;strokeColor=#718096;fontColor=#FFFFFF;fontSize=11;align=center;" vertex="1" parent="microservices-layer">
+          <mxGeometry x="280" y="55" width="180" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="patient-service" value="Patient&#xa;Service&#xa;(Python FastAPI)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#4a5568;strokeColor=#718096;fontColor=#FFFFFF;fontSize=11;align=center;" vertex="1" parent="microservices-layer">
+          <mxGeometry x="520" y="55" width="180" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="notification-service" value="Notification&#xa;Service&#xa;(Node.js)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#4a5568;strokeColor=#718096;fontColor=#FFFFFF;fontSize=11;align=center;" vertex="1" parent="microservices-layer">
+          <mxGeometry x="760" y="55" width="180" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- Row 2 of Microservices -->
+        <mxCell id="dicom-router" value="DICOM Router&#xa;Service&#xa;(Go/C++)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#4a5568;strokeColor=#718096;fontColor=#FFFFFF;fontSize=11;align=center;" vertex="1" parent="microservices-layer">
+          <mxGeometry x="40" y="195" width="180" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="report-gen" value="Report Gen&#xa;Service&#xa;(Python FastAPI)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#4a5568;strokeColor=#718096;fontColor=#FFFFFF;fontSize=11;align=center;" vertex="1" parent="microservices-layer">
+          <mxGeometry x="280" y="195" width="180" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="authentication" value="Authentication&#xa;Service&#xa;(.NET Core)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#4a5568;strokeColor=#718096;fontColor=#FFFFFF;fontSize=11;align=center;" vertex="1" parent="microservices-layer">
+          <mxGeometry x="520" y="195" width="180" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="audit-log" value="Audit Log&#xa;Service&#xa;(Python FastAPI)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#4a5568;strokeColor=#718096;fontColor=#FFFFFF;fontSize=11;align=center;" vertex="1" parent="microservices-layer">
+          <mxGeometry x="760" y="195" width="180" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- Message Broker -->
+        <mxCell id="message-broker" value="MESSAGE BROKER (RabbitMQ/Kafka)&#xa;(Async Communication, Event Streaming)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#2d3748;strokeColor=#4a5568;fontColor=#FFFFFF;fontSize=12;fontStyle=1;align=center;" vertex="1" parent="hospital-container">
+          <mxGeometry x="30" y="900" width="1260" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Data Layer Container -->
+        <mxCell id="data-layer" value="DATA LAYER" style="swimlane;whiteSpace=wrap;html=1;fillColor=#1a202c;strokeColor=#4a5568;fontColor=#FFFFFF;fontSize=12;fontStyle=1;startSize=35;" vertex="1" parent="hospital-container">
+          <mxGeometry x="30" y="1020" width="1260" height="180" as="geometry" />
+        </mxCell>
+
+        <!-- Databases -->
+        <mxCell id="postgresql" value="PostgreSQL&#xa;(Patient&#xa;Records)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#4a5568;strokeColor=#718096;fontColor=#FFFFFF;fontSize=11;align=center;" vertex="1" parent="data-layer">
+          <mxGeometry x="60" y="55" width="180" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="mongodb" value="MongoDB&#xa;(AI Model&#xa;Results)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#4a5568;strokeColor=#718096;fontColor=#FFFFFF;fontSize=11;align=center;" vertex="1" parent="data-layer">
+          <mxGeometry x="290" y="55" width="180" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="redis" value="Redis&#xa;(Cache/&#xa;Sessions)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#4a5568;strokeColor=#718096;fontColor=#FFFFFF;fontSize=11;align=center;" vertex="1" parent="data-layer">
+          <mxGeometry x="520" y="55" width="180" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="minio" value="MinIO/S3&#xa;(Medical&#xa;Images)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#4a5568;strokeColor=#718096;fontColor=#FFFFFF;fontSize=11;align=center;" vertex="1" parent="data-layer">
+          <mxGeometry x="750" y="55" width="180" height="100" as="geometry" />
+        </mxCell>
+
+        <mxCell id="influxdb" value="InfluxDB&#xa;(Metrics)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#4a5568;strokeColor=#718096;fontColor=#FFFFFF;fontSize=11;align=center;" vertex="1" parent="data-layer">
+          <mxGeometry x="980" y="55" width="180" height="100" as="geometry" />
+        </mxCell>
+
+        <!-- Connection Lines -->
+        <!-- Presentation to NGINX -->
+        <mxCell id="edge1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#718096;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.25;entryY=0;" edge="1" parent="hospital-container" source="radiology-portal" target="nginx-gateway">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#718096;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.4;entryY=0;" edge="1" parent="hospital-container" source="clinical-dashboard" target="nginx-gateway">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#718096;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.6;entryY=0;" edge="1" parent="hospital-container" source="admin-portal" target="nginx-gateway">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#718096;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.75;entryY=0;" edge="1" parent="hospital-container" source="mobile-app" target="nginx-gateway">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- NGINX to Service Mesh -->
+        <mxCell id="edge5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#718096;strokeWidth=3;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="hospital-container" source="nginx-gateway" target="service-mesh">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Service Mesh to Microservices -->
+        <mxCell id="edge6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#718096;strokeWidth=3;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="hospital-container" source="service-mesh" target="microservices-layer">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Microservices to Message Broker -->
+        <mxCell id="edge7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#718096;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.2;entryY=0;" edge="1" parent="hospital-container" source="ai-inference" target="message-broker">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#718096;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.35;entryY=0;" edge="1" parent="hospital-container" source="image-analysis" target="message-broker">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#718096;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="hospital-container" source="patient-service" target="message-broker">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#718096;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.65;entryY=0;" edge="1" parent="hospital-container" source="notification-service" target="message-broker">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#718096;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.2;entryY=1;" edge="1" parent="hospital-container" source="dicom-router" target="message-broker">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge12" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#718096;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.35;entryY=1;" edge="1" parent="hospital-container" source="report-gen" target="message-broker">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge13" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#718096;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.65;entryY=1;" edge="1" parent="hospital-container" source="authentication" target="message-broker">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge14" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#718096;strokeWidth=2;exitX=0.5;exitY=1;entryX=0.8;entryY=1;" edge="1" parent="hospital-container" source="audit-log" target="message-broker">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Message Broker to Data Layer -->
+        <mxCell id="edge15" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#718096;strokeWidth=3;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="hospital-container" source="message-broker" target="data-layer">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
