@@ -1,0 +1,227 @@
+# Multi-Client Architecture
+
+::: {.callout-note appearance="default" collapse="false"}
+**Q:** Let's say I have a mono-repo app that structure the frontend and backend like this:
+
+central_repo
+* `frontend/`
+* `backend/`
+
+The frontend talk with the backend via REST HTTP request with `basepath/api/` endpoint, so that there will be no CORS issue. 
+
+In terms of micro-service architecture, can I also use backend as a stand-alone API that other clients can connect to (which could structure their repo similar to this). If it can, I'm not sure if this is a best practice in the industry. 
+
+Please give your comment and suggest the best practice.
+:::
+
+
+Great question! Yes, you can absolutely use your backend as a standalone API that serves multiple clients. This is actually a very common and recommended pattern in modern software architecture. Let me break this down with some diagrams and best practices.
+
+## Current Architecture vs Multi-Client Architecture
+
+**Your Current Setup:**
+
+```
+┌─────────────────────────┐
+│    central_repo/        │
+│  ┌──────────────────┐   │
+│  │    frontend/     │   │
+│  └────────┬─────────┘   │
+│           │             │
+│           ▼             │
+│  ┌──────────────────┐   │
+│  │    backend/      │   │
+│  │   /api/* routes  │   │
+│  └──────────────────┘   │
+└─────────────────────────┘
+```
+
+**Multi-Client Architecture:**
+
+```
+┌─────────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│   Your Frontend     │     │   Mobile App     │     │  3rd Party App   │
+│  (Same repo)        │     │  (Other repo)    │     │  (External)      │
+└──────────┬──────────┘     └────────┬─────────┘     └────────┬─────────┘
+           │                         │                        │
+           │         ┌───────────────┴───────────────┐        │
+           └────────►│        Backend API            │◄────── ┘
+                     │    (central_repo/backend)     │
+                     │                               │
+                     │  • /api/v1/users              │
+                     │  • /api/v1/products           │
+                     │  • /api/v1/orders             │
+                     └───────────────────────────────┘
+```
+
+## Best Practices for Multi-Client API
+
+### 1. **API Versioning**
+
+```python
+# backend/routes/api.py
+from fastapi import APIRouter
+
+# Version your API endpoints
+v1_router = APIRouter(prefix="/api/v1")
+v2_router = APIRouter(prefix="/api/v2")  # When breaking changes occur
+```
+
+### 2. **Authentication & Authorization**
+
+```
+┌──────────────────────────────────────────┐
+│            API Gateway                   │
+├──────────────────────────────────────────┤
+│  • JWT/OAuth2 Authentication             │
+│  • API Key Management                    │
+│  • Rate Limiting per Client              │
+│  • CORS Configuration                    │
+└─────────────┬────────────────────────────┘
+              ▼
+┌──────────────────────────────────────────┐
+│         Backend Services                 │
+└──────────────────────────────────────────┘
+```
+
+### 3. **Repository Structure Enhancement**
+
+```
+central_repo/
+├── frontend/
+│   ├── src/
+│   └── package.json
+├── backend/
+│   ├── api/
+│   │   ├── v1/
+│   │   │   ├── routes/
+│   │   │   ├── schemas/
+│   │   │   └── middleware/
+│   │   └── v2/
+│   ├── core/
+│   │   ├── config.py
+│   │   ├── security.py
+│   │   └── database.py
+│   ├── services/
+│   └── requirements.txt
+├── shared/           # Shared types/contracts
+│   └── api-specs/
+│       └── openapi.yaml
+└── docker-compose.yml
+```
+
+### 4. **CORS Configuration for Multiple Clients**
+
+```python
+# backend/core/config.py
+from pydantic import BaseSettings
+
+class Settings(BaseSettings):
+    # Different CORS origins for different environments
+    ALLOWED_ORIGINS: list = [
+        "http://localhost:3000",      # Your frontend dev
+        "https://yourapp.com",        # Your production frontend
+        "https://mobile.yourapp.com", # Mobile web client
+        "https://partner.example.com" # Partner integration
+    ]
+    
+    # API Keys for external clients
+    API_KEYS: dict = {
+        "mobile_app": "key_xxx",
+        "partner_app": "key_yyy"
+    }
+```
+
+### 5. **Different Access Patterns**
+
+```
+┌─────────────────────────────────────────────────────┐
+│                  Client Types                       │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│  Internal Frontend:                                │
+│  • Full access to all endpoints                    │
+│  • Session-based auth                             │
+│  • No rate limiting                               │
+│                                                     │
+│  Mobile App:                                       │
+│  • JWT token auth                                 │
+│  • Specific endpoint access                       │
+│  • Moderate rate limiting                         │
+│                                                     │
+│  External Partners:                                │
+│  • API Key auth                                   │
+│  • Limited endpoint access                        │
+│  • Strict rate limiting                           │
+│  • Webhook callbacks                              │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+```
+
+## Implementation Recommendations
+
+### 1. **Use API Gateway Pattern** (Optional but Recommended for Scale)
+
+```
+         ┌─────────────┐
+         │   Clients   │
+         └──────┬──────┘
+                ▼
+    ┌──────────────────────┐
+    │     API Gateway      │  ← Kong, AWS API Gateway, Traefik
+    │  • Authentication    │
+    │  • Rate Limiting     │
+    │  • Request Routing   │
+    └──────────┬───────────┘
+               ▼
+    ┌──────────────────────┐
+    │    Your Backend      │
+    └──────────────────────┘
+```
+
+### 2. **API Documentation**
+
+```python
+# Use FastAPI's automatic OpenAPI/Swagger generation
+from fastapi import FastAPI
+
+app = FastAPI(
+    title="Your API",
+    version="1.0.0",
+    docs_url="/api/docs",  # Swagger UI
+    redoc_url="/api/redoc"  # ReDoc
+)
+```
+
+### 3. **Environment-Specific Configuration**
+
+```python
+# backend/.env.development
+API_MODE=internal
+RATE_LIMIT_ENABLED=false
+
+# backend/.env.production
+API_MODE=public
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_REQUESTS=100
+RATE_LIMIT_PERIOD=3600  # per hour
+```
+
+## Is This Best Practice?
+
+**YES, absolutely!** This pattern is called **API-First Development** and is considered a best practice because:
+
+1. **Separation of Concerns**: Backend logic is completely decoupled from frontend
+2. **Reusability**: One API serves multiple clients
+3. **Scalability**: Can scale frontend and backend independently
+4. **Flexibility**: Easy to add new client types (mobile, desktop, IoT)
+5. **Testing**: API can be tested independently
+6. **Documentation**: Single source of truth for API behavior
+
+## Common Patterns in Industry
+
+1. **Netflix**: Single API serving web, mobile, TV apps
+2. **Spotify**: Web API serving multiple platforms
+3. **GitHub**: Public API used by their own frontend and thousands of external apps
+
+Your monorepo structure with this multi-client capability is actually quite modern and aligns well with current industry practices!
