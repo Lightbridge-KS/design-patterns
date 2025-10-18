@@ -24,6 +24,9 @@ book:
     - part: Transport
       chapters: 
         - "contents/pattern/dto-explained.qmd"
+    - part: API 
+      chapters: 
+        - "contents/api/restapi-design-bookstore.qmd"
         
 bibliography: references.bib
 

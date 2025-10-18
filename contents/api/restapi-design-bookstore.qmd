@@ -1,0 +1,297 @@
+# REST API (Book Store)
+
+I'll guide you through REST API design best practices using a Book Store as our example. Let's break this down systematically.
+
+## REST API Fundamentals
+
+REST (Representational State Transfer) APIs follow key principles:
+
+- **Resources** are nouns (books, authors, orders)
+- **HTTP methods** are verbs (GET, POST, PUT, PATCH, DELETE)
+- **Stateless** - each request contains all necessary information
+- **Uniform interface** - consistent patterns across endpoints
+
+## Book Store API Design
+
+### Resource Structure
+
+```
+┌─────────────────────────────────────┐
+│         Book Store API              │
+├─────────────────────────────────────┤
+│  Resources:                         │
+│  • Books                            │
+│  • Authors                          │
+│  • Categories                       │
+│  • Orders                           │
+│  • Users                            │
+└─────────────────────────────────────┘
+```
+
+### CRUD Operations for Books Resource
+
+Here's the complete endpoint design:
+
+```
+┌──────────────┬─────────────────────────┬──────────────────────────┐
+│ HTTP Method  │ Endpoint                │ Description              │
+├──────────────┼─────────────────────────┼──────────────────────────┤
+│ GET          │ /api/v1/books           │ List all books           │
+│ GET          │ /api/v1/books/{id}      │ Get a specific book      │
+│ POST         │ /api/v1/books           │ Create a new book        │
+│ PUT          │ /api/v1/books/{id}      │ Replace entire book      │
+│ PATCH        │ /api/v1/books/{id}      │ Update book partially    │
+│ DELETE       │ /api/v1/books/{id}      │ Delete a book            │
+└──────────────┴─────────────────────────┴──────────────────────────┘
+```
+
+### Detailed Examples with JSON
+
+#### 1. **GET /api/v1/books** - List all books
+```json
+// Response: 200 OK
+{
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "title": "Clean Code",
+      "author": "Robert C. Martin",
+      "isbn": "978-0132350884",
+      "price": 32.99,
+      "stock": 15,
+      "category": "programming",
+      "published_date": "2008-08-01"
+    },
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440001",
+      "title": "Design Patterns",
+      "author": "Gang of Four",
+      "isbn": "978-0201633610",
+      "price": 45.99,
+      "stock": 8,
+      "category": "programming",
+      "published_date": "1994-10-31"
+    }
+  ],
+  "meta": {
+    "total": 150,
+    "page": 1,
+    "per_page": 20
+  }
+}
+```
+
+#### 2. **GET /api/v1/books/{id}** - Get specific book
+```json
+// Response: 200 OK
+{
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "title": "Clean Code",
+    "author": "Robert C. Martin",
+    "isbn": "978-0132350884",
+    "price": 32.99,
+    "stock": 15,
+    "category": "programming",
+    "published_date": "2008-08-01",
+    "description": "A handbook of agile software craftsmanship",
+    "publisher": "Prentice Hall",
+    "pages": 464
+  }
+}
+```
+
+#### 3. **POST /api/v1/books** - Create new book
+```json
+// Request Body:
+{
+  "title": "The Pragmatic Programmer",
+  "author": "David Thomas, Andrew Hunt",
+  "isbn": "978-0135957059",
+  "price": 39.99,
+  "stock": 20,
+  "category": "programming",
+  "published_date": "2019-09-13",
+  "description": "Your journey to mastery",
+  "publisher": "Addison-Wesley",
+  "pages": 352
+}
+
+// Response: 201 Created
+{
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440002",
+    "title": "The Pragmatic Programmer",
+    // ... rest of the book data
+  }
+}
+```
+
+#### 4. **PATCH /api/v1/books/{id}** - Partial update
+```json
+// Request Body (only fields to update):
+{
+  "price": 29.99,
+  "stock": 25
+}
+
+// Response: 200 OK
+{
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "title": "Clean Code",
+    // ... updated fields reflected
+    "price": 29.99,
+    "stock": 25
+  }
+}
+```
+
+## API Versioning Strategies
+
+### 1. **URI Path Versioning** (Most Common)
+```
+┌────────────────────────────────────────┐
+│  /api/v1/books                        │
+│  /api/v2/books                        │
+│                                        │
+│  Pros: • Clear and visible            │
+│        • Easy to route                │
+│  Cons: • URL pollution                │
+│        • Not truly RESTful            │
+└────────────────────────────────────────┘
+```
+
+### 2. **Header Versioning**
+```http
+GET /api/books HTTP/1.1
+Host: bookstore.com
+Accept: application/vnd.bookstore.v2+json
+```
+
+### 3. **Query Parameter Versioning**
+```
+GET /api/books?version=2
+```
+
+### Version Migration Example
+
+```
+        Version 1                    Version 2
+    ┌──────────────┐            ┌──────────────┐
+    │ /api/v1/books│            │ /api/v2/books│
+    └──────┬───────┘            └──────┬───────┘
+           │                           │
+    ┌──────▼───────┐            ┌──────▼───────┐
+    │ Response v1  │            │ Response v2  │
+    │              │            │              │
+    │ {            │            │ {            │
+    │   "title",   │            │   "title",   │
+    │   "author"   │            │   "authors"[]│ <- Changed
+    │ }            │            │   "metadata" │ <- New
+    └──────────────┘            └──────────────┘
+```
+
+## Best Practices
+
+### 1. **Use Proper HTTP Status Codes**
+```
+2xx Success:
+  • 200 OK - Successful GET, PUT
+  • 201 Created - Successful POST
+  • 204 No Content - Successful DELETE
+
+4xx Client Errors:
+  • 400 Bad Request - Invalid syntax
+  • 401 Unauthorized - Authentication required
+  • 403 Forbidden - No permission
+  • 404 Not Found - Resource doesn't exist
+  • 422 Unprocessable Entity - Validation errors
+
+5xx Server Errors:
+  • 500 Internal Server Error
+  • 503 Service Unavailable
+```
+
+### 2. **Filtering, Sorting & Pagination**
+```
+GET /api/v1/books?category=programming&sort=-price&page=2&limit=20
+                  └────────┬──────────┘ └───┬────┘ └──────┬──────┘
+                      Filtering          Sorting      Pagination
+```
+
+### 3. **Nested Resources**
+```
+/api/v1/authors/{authorId}/books     # Books by specific author
+/api/v1/orders/{orderId}/items       # Items in specific order
+/api/v1/users/{userId}/orders        # Orders for specific user
+```
+
+### 4. **Error Response Format**
+```json
+{
+  "error": {
+    "code": "BOOK_NOT_FOUND",
+    "message": "The requested book does not exist",
+    "details": {
+      "id": "550e8400-invalid-id"
+    },
+    "timestamp": "2024-10-18T10:30:00Z"
+  }
+}
+```
+
+### 5. **Consistent Response Envelope**
+```json
+{
+  "data": { /* actual response */ },
+  "meta": {
+    "request_id": "req_123",
+    "timestamp": "2024-10-18T10:30:00Z"
+  },
+  "links": {
+    "self": "/api/v1/books?page=2",
+    "next": "/api/v1/books?page=3",
+    "prev": "/api/v1/books?page=1"
+  }
+}
+```
+
+## Complete API Structure Example
+
+```
+┌─────────────────────────────────────────────┐
+│            Book Store API v1               │
+├─────────────────────────────────────────────┤
+│                                             │
+│  Books:                                     │
+│  ├── GET    /api/v1/books                  │
+│  ├── GET    /api/v1/books/{id}             │
+│  ├── POST   /api/v1/books                  │
+│  ├── PUT    /api/v1/books/{id}             │
+│  ├── PATCH  /api/v1/books/{id}             │
+│  └── DELETE /api/v1/books/{id}             │
+│                                             │
+│  Authors:                                   │
+│  ├── GET    /api/v1/authors                │
+│  ├── GET    /api/v1/authors/{id}           │
+│  ├── GET    /api/v1/authors/{id}/books     │
+│  └── ...                                   │
+│                                             │
+│  Orders:                                    │
+│  ├── GET    /api/v1/orders                 │
+│  ├── POST   /api/v1/orders                 │
+│  ├── GET    /api/v1/orders/{id}            │
+│  └── PATCH  /api/v1/orders/{id}/status     │
+│                                             │
+└─────────────────────────────────────────────┘
+```
+
+## Key Takeaways
+
+1. **Use nouns for resources**, not verbs (`/books` not `/getBooks`)
+2. **HTTP methods determine actions** (GET reads, POST creates, etc.)
+3. **Keep URLs consistent and predictable**
+4. **Version your API from day one**
+5. **Use proper status codes and error handling**
+6. **Document everything clearly**
