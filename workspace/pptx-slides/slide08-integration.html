@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+html { background: #1a202c; }
+body {
+  width: 720pt; height: 405pt; margin: 0; padding: 0;
+  background: #1a202c;
+  font-family: Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+.header {
+  background: #667EEA;
+  padding: 25pt 40pt;
+  border-left: 8pt solid #00BCD4;
+}
+h1 {
+  color: #FFFFFF;
+  font-size: 32pt;
+  margin: 0;
+  font-weight: bold;
+}
+.content {
+  padding: 20pt 40pt 30pt 40pt;
+  flex: 1;
+}
+.integration-box {
+  background: #2D3748;
+  border-left: 4pt solid #00BCD4;
+  border-radius: 6pt;
+  padding: 12pt 18pt;
+  margin-bottom: 10pt;
+}
+.integration-box h2 {
+  color: #00BCD4;
+  font-size: 16pt;
+  margin: 0 0 8pt 0;
+  font-weight: bold;
+}
+.integration-box p {
+  color: #F7FAFC;
+  font-size: 13pt;
+  margin: 0;
+  line-height: 1.5;
+}
+.protocol {
+  color: #F59E0B;
+  font-weight: bold;
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Hospital System Integration</h1>
+</div>
+<div class="content">
+  <div class="integration-box">
+    <h2>PACS (Picture Archiving System)</h2>
+    <p>Bi-directional DICOM communication through DICOM Router Service for seamless medical image exchange</p>
+  </div>
+  <div class="integration-box">
+    <h2>HIS/EMR (Epic, Cerner, etc.)</h2>
+    <p><span class="protocol">HL7 & FHIR</span> integration via FHIR Adapter Service for patient data synchronization</p>
+  </div>
+  <div class="integration-box">
+    <h2>RIS (Radiology Information System)</h2>
+    <p><span class="protocol">REST API</span> integration through Integration Service for workflow coordination</p>
+  </div>
+</div>
+</body>
+</html>

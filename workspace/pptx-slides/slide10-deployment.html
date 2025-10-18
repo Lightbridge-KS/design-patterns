@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+html { background: #1a202c; }
+body {
+  width: 720pt; height: 405pt; margin: 0; padding: 0;
+  background: #1a202c;
+  font-family: Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+.header {
+  background: #667EEA;
+  padding: 25pt 40pt;
+  border-left: 8pt solid #00BCD4;
+}
+h1 {
+  color: #FFFFFF;
+  font-size: 32pt;
+  margin: 0;
+  font-weight: bold;
+}
+.content {
+  padding: 20pt 40pt 30pt 40pt;
+  flex: 1;
+}
+.option-box {
+  background: #2D3748;
+  border-left: 4pt solid #F59E0B;
+  border-radius: 6pt;
+  padding: 11pt 16pt;
+  margin-bottom: 9pt;
+}
+.option-box h2 {
+  color: #F59E0B;
+  font-size: 15pt;
+  margin: 0 0 7pt 0;
+  font-weight: bold;
+}
+.option-box p {
+  color: #F7FAFC;
+  font-size: 12pt;
+  margin: 0;
+  line-height: 1.4;
+}
+.recommended {
+  color: #00BCD4;
+  font-weight: bold;
+  font-size: 11pt;
+  text-transform: uppercase;
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Deployment Options</h1>
+</div>
+<div class="content">
+  <div class="option-box">
+    <h2>Option 1: Kubernetes <span class="recommended">(Recommended)</span></h2>
+    <p>Production-grade orchestration with Helm charts, Istio service mesh, and Prometheus monitoring. Best for scalability and high availability.</p>
+  </div>
+  <div class="option-box">
+    <h2>Option 2: Docker Swarm</h2>
+    <p>Simpler container orchestration for 3-5 physical servers. Easier to manage with Portainer UI. Good for medium-scale deployments.</p>
+  </div>
+  <div class="option-box">
+    <h2>Option 3: Traditional VMs</h2>
+    <p>VMware vSphere or Hyper-V with each service in separate VMs. Compatible with existing infrastructure. Ansible/Terraform for provisioning.</p>
+  </div>
+</div>
+</body>
+</html>

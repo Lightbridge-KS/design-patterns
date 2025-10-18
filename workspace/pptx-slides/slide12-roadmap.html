@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+html { background: #1a202c; }
+body {
+  width: 720pt; height: 405pt; margin: 0; padding: 0;
+  background: #1a202c;
+  font-family: Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+.header {
+  background: #667EEA;
+  padding: 25pt 40pt;
+  border-left: 8pt solid #00BCD4;
+}
+h1 {
+  color: #FFFFFF;
+  font-size: 32pt;
+  margin: 0;
+  font-weight: bold;
+}
+.content {
+  padding: 20pt 40pt 30pt 40pt;
+  flex: 1;
+}
+.phase {
+  display: flex;
+  gap: 12pt;
+  margin-bottom: 14pt;
+  align-items: flex-start;
+}
+.phase-number {
+  flex: 0 0 45pt;
+  height: 45pt;
+  background: #00BCD4;
+  color: #1a202c;
+  font-size: 22pt;
+  font-weight: bold;
+  border-radius: 6pt;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.phase-content {
+  flex: 1;
+  padding-top: 2pt;
+}
+.phase-content h2 {
+  color: #00BCD4;
+  font-size: 16pt;
+  margin: 0 0 6pt 0;
+  font-weight: bold;
+}
+.phase-content p {
+  color: #F7FAFC;
+  font-size: 12pt;
+  margin: 0;
+  line-height: 1.4;
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Implementation Roadmap</h1>
+</div>
+<div class="content">
+  <div class="phase">
+    <div class="phase-number"><p>1</p></div>
+    <div class="phase-content">
+      <h2>Infrastructure Setup (Weeks 1-2)</h2>
+      <p>Deploy Kubernetes cluster, configure networking, set up CI/CD pipelines</p>
+    </div>
+  </div>
+  <div class="phase">
+    <div class="phase-number"><p>2</p></div>
+    <div class="phase-content">
+      <h2>Core Services (Weeks 3-6)</h2>
+      <p>Implement authentication, patient service, DICOM router, and API gateway</p>
+    </div>
+  </div>
+  <div class="phase">
+    <div class="phase-number"><p>3</p></div>
+    <div class="phase-content">
+      <h2>AI & Analytics (Weeks 7-10)</h2>
+      <p>Deploy AI inference service, image analysis, and reporting capabilities</p>
+    </div>
+  </div>
+  <div class="phase">
+    <div class="phase-number"><p>4</p></div>
+    <div class="phase-content">
+      <h2>Integration & Testing (Weeks 11-12)</h2>
+      <p>Connect to PACS, HIS/EMR, RIS systems. Comprehensive testing and training</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>

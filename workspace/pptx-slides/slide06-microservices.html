@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+html { background: #1a202c; }
+body {
+  width: 720pt; height: 405pt; margin: 0; padding: 0;
+  background: #1a202c;
+  font-family: Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+.header {
+  background: #667EEA;
+  padding: 25pt 40pt;
+  border-left: 8pt solid #00BCD4;
+}
+h1 {
+  color: #FFFFFF;
+  font-size: 32pt;
+  margin: 0;
+  font-weight: bold;
+}
+.content {
+  padding: 30pt 40pt;
+  flex: 1;
+  display: flex;
+  gap: 25pt;
+}
+.col {
+  flex: 1;
+}
+.service-item {
+  margin-bottom: 16pt;
+}
+.service-item h2 {
+  color: #00BCD4;
+  font-size: 15pt;
+  margin: 0 0 6pt 0;
+  font-weight: bold;
+}
+.service-item p {
+  color: #A0AEC0;
+  font-size: 12pt;
+  margin: 0;
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Microservices Layer</h1>
+</div>
+<div class="content">
+  <div class="col">
+    <div class="service-item">
+      <h2>AI Inference Service</h2>
+      <p>Python FastAPI, PyTorch, GPU support</p>
+    </div>
+    <div class="service-item">
+      <h2>Image Analysis Service</h2>
+      <p>.NET Web API, DICOM handling</p>
+    </div>
+    <div class="service-item">
+      <h2>Patient Service</h2>
+      <p>Python FastAPI, FHIR compliance</p>
+    </div>
+    <div class="service-item">
+      <h2>Notification Service</h2>
+      <p>Node.js, real-time alerts</p>
+    </div>
+  </div>
+  <div class="col">
+    <div class="service-item">
+      <h2>DICOM Router Service</h2>
+      <p>Go/C++, high-performance routing</p>
+    </div>
+    <div class="service-item">
+      <h2>Report Generation Service</h2>
+      <p>Python FastAPI, automated reports</p>
+    </div>
+    <div class="service-item">
+      <h2>Authentication Service</h2>
+      <p>.NET Core, OAuth 2.0/SAML 2.0</p>
+    </div>
+    <div class="service-item">
+      <h2>Audit Log Service</h2>
+      <p>Python FastAPI, HIPAA compliance</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>

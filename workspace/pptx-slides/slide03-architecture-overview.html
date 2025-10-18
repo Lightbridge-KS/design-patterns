@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+html { background: #1a202c; }
+body {
+  width: 720pt; height: 405pt; margin: 0; padding: 0;
+  background: #1a202c;
+  font-family: Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+.header {
+  background: #667EEA;
+  padding: 25pt 40pt;
+  border-left: 8pt solid #00BCD4;
+}
+h1 {
+  color: #FFFFFF;
+  font-size: 32pt;
+  margin: 0;
+  font-weight: bold;
+}
+.content {
+  padding: 30pt 40pt;
+  flex: 1;
+  display: flex;
+  gap: 25pt;
+}
+.left-col {
+  flex: 0 0 280pt;
+}
+.right-col {
+  flex: 1;
+}
+h2 {
+  color: #00BCD4;
+  font-size: 18pt;
+  margin: 0 0 15pt 0;
+  font-weight: bold;
+}
+ul {
+  color: #F7FAFC;
+  font-size: 14pt;
+  line-height: 1.6;
+  margin: 0;
+  padding-left: 20pt;
+}
+li {
+  margin-bottom: 8pt;
+}
+.diagram-placeholder {
+  background: #2D3748;
+  border: 2pt dashed #667EEA;
+  border-radius: 8pt;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.diagram-placeholder p {
+  color: #A0AEC0;
+  font-size: 14pt;
+  margin: 0;
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Architecture Overview</h1>
+</div>
+<div class="content">
+  <div class="left-col">
+    <h2>System Layers</h2>
+    <ul>
+      <li>Presentation Layer</li>
+      <li>API Gateway</li>
+      <li>Service Mesh</li>
+      <li>Microservices Layer</li>
+      <li>Message Broker</li>
+      <li>Data Layer</li>
+    </ul>
+  </div>
+  <div class="right-col">
+    <div class="diagram-placeholder">
+      <p>Architecture Diagram</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>

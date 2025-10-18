@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+html { background: #1a202c; }
+body {
+  width: 720pt; height: 405pt; margin: 0; padding: 0;
+  background: #1a202c;
+  font-family: Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+.header {
+  background: #667EEA;
+  padding: 25pt 40pt;
+  border-left: 8pt solid #00BCD4;
+}
+h1 {
+  color: #FFFFFF;
+  font-size: 32pt;
+  margin: 0;
+  font-weight: bold;
+}
+.content {
+  padding: 20pt 40pt 30pt 40pt;
+  flex: 1;
+  display: flex;
+  gap: 20pt;
+}
+.col {
+  flex: 1;
+}
+.db-card {
+  background: #2D3748;
+  border-top: 3pt solid #00BCD4;
+  border-radius: 6pt;
+  padding: 11pt;
+  margin-bottom: 9pt;
+}
+.db-card h2 {
+  color: #00BCD4;
+  font-size: 16pt;
+  margin: 0 0 8pt 0;
+  font-weight: bold;
+}
+.db-card p {
+  color: #F7FAFC;
+  font-size: 12pt;
+  margin: 0;
+  line-height: 1.4;
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Data Layer</h1>
+</div>
+<div class="content">
+  <div class="col">
+    <div class="db-card">
+      <h2>PostgreSQL</h2>
+      <p>Patient records, clinical data, structured medical information</p>
+    </div>
+    <div class="db-card">
+      <h2>MongoDB</h2>
+      <p>AI model results, unstructured data, flexible schema</p>
+    </div>
+    <div class="db-card">
+      <h2>Redis</h2>
+      <p>Session management, caching, real-time performance</p>
+    </div>
+  </div>
+  <div class="col">
+    <div class="db-card">
+      <h2>MinIO/S3</h2>
+      <p>Medical images, DICOM files, large object storage</p>
+    </div>
+    <div class="db-card">
+      <h2>InfluxDB</h2>
+      <p>System metrics, monitoring data, time-series analytics</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>

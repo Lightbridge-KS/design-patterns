@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+html { background: #1a202c; }
+body {
+  width: 720pt; height: 405pt; margin: 0; padding: 0;
+  background: #1a202c;
+  font-family: Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+}
+.header {
+  background: #667EEA;
+  padding: 25pt 40pt;
+  border-left: 8pt solid #00BCD4;
+}
+h1 {
+  color: #FFFFFF;
+  font-size: 32pt;
+  margin: 0;
+  font-weight: bold;
+}
+.content {
+  padding: 25pt 40pt;
+  flex: 1;
+}
+.app-grid {
+  display: flex;
+  gap: 15pt;
+  margin-top: 20pt;
+}
+.app-card {
+  flex: 1;
+  background: #2D3748;
+  border-left: 4pt solid #00BCD4;
+  border-radius: 6pt;
+  padding: 15pt;
+}
+.app-card h2 {
+  color: #00BCD4;
+  font-size: 16pt;
+  margin: 0 0 12pt 0;
+  font-weight: bold;
+}
+.app-card p {
+  color: #F7FAFC;
+  font-size: 13pt;
+  margin: 0 0 8pt 0;
+  line-height: 1.5;
+}
+.app-card .tech {
+  color: #A0AEC0;
+  font-size: 11pt;
+  margin: 0;
+  font-style: italic;
+}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Presentation Layer</h1>
+</div>
+<div class="content">
+  <div class="app-grid">
+    <div class="app-card">
+      <h2>Radiology Portal</h2>
+      <p>AI-powered diagnostic imaging interface with DICOM viewer</p>
+      <p class="tech">React SPA</p>
+    </div>
+    <div class="app-card">
+      <h2>Clinical Dashboard</h2>
+      <p>Real-time patient data and AI insights for clinicians</p>
+      <p class="tech">React SPA</p>
+    </div>
+  </div>
+  <div class="app-grid">
+    <div class="app-card">
+      <h2>Admin Portal</h2>
+      <p>System configuration and user management</p>
+      <p class="tech">React + FastAPI</p>
+    </div>
+    <div class="app-card">
+      <h2>Mobile App</h2>
+      <p>On-the-go access for medical staff</p>
+      <p class="tech">Flutter</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>
