@@ -1,0 +1,146 @@
+# Isomorphic Relationship
+
+An **isomorphic relationship** means having the same structure or form. In software architecture, it refers to maintaining a one-to-one mapping between your code entities (classes/models) and database tables - they mirror each other's structure.
+
+### Core Concept
+
+When you have an isomorphic relationship:
+- **Each database table** → corresponds to **one class/model** in code
+- **Each column** → corresponds to **one property** in the class
+- **Each row** → corresponds to **one instance** of the class
+- **Relationships between tables** → reflected as **relationships between classes**
+
+### Visual Representation
+
+```
+DATABASE STRUCTURE              CODEBASE STRUCTURE
+==================              ==================
+
+┌─────────────────┐            ┌─────────────────┐
+│   Patient       │  <------>  │  Patient.cs     │
+├─────────────────┤            ├─────────────────┤
+│ Id (PK)         │            │ int Id          │
+│ Name            │            │ string Name     │
+│ DateOfBirth     │            │ DateTime DOB    │
+│ HospitalNumber  │            │ string HN       │
+└─────────────────┘            └─────────────────┘
+        │                              │
+        │ Foreign Key                  │ Navigation
+        │ Reference                    │ Property
+        ▼                              ▼
+┌─────────────────┐            ┌─────────────────┐
+│   Exam          │  <------>  │  Exam.cs        │
+├─────────────────┤            ├─────────────────┤
+│ Id (PK)         │            │ int Id          │
+│ PatientId (FK)  │            │ int PatientId   │
+│ ExamType        │            │ string ExamType │
+│ ExamDate        │            │ DateTime Date   │
+│ Findings        │            │ string Findings │
+└─────────────────┘            └─────────────────┘
+```
+
+### Simple C# Example
+
+Here's a practical example using Entity Framework (common ORM in C#):
+
+**Database Tables:**
+```sql
+-- Patient table
+CREATE TABLE Patients (
+    Id INT PRIMARY KEY,
+    Name NVARCHAR(100),
+    DateOfBirth DATE,
+    HospitalNumber NVARCHAR(20)
+);
+
+-- Exam table
+CREATE TABLE Exams (
+    Id INT PRIMARY KEY,
+    PatientId INT FOREIGN KEY REFERENCES Patients(Id),
+    ExamType NVARCHAR(50),
+    ExamDate DATETIME,
+    Findings NVARCHAR(MAX)
+);
+```
+
+**C# Classes (Isomorphic to Database):**
+```csharp
+// Patient.cs - Mirrors the Patients table
+public class Patient
+{
+    public int Id { get; set; }                    // Maps to: Id column
+    public string Name { get; set; }               // Maps to: Name column
+    public DateTime DateOfBirth { get; set; }      // Maps to: DateOfBirth column
+    public string HospitalNumber { get; set; }     // Maps to: HospitalNumber column
+    
+    // Navigation property - represents relationship
+    public List<Exam> Exams { get; set; }
+}
+
+// Exam.cs - Mirrors the Exams table
+public class Exam
+{
+    public int Id { get; set; }                    // Maps to: Id column
+    public int PatientId { get; set; }             // Maps to: PatientId column
+    public string ExamType { get; set; }           // Maps to: ExamType column
+    public DateTime ExamDate { get; set; }         // Maps to: ExamDate column
+    public string Findings { get; set; }           // Maps to: Findings column
+    
+    // Navigation property - represents relationship
+    public Patient Patient { get; set; }
+}
+```
+
+### Benefits of Isomorphic Design
+
+1. **Predictability**: Developers can understand database structure by looking at code (and vice versa)
+2. **Maintainability**: Changes in database schema directly translate to code changes
+3. **Tool Support**: ORMs like Entity Framework can auto-generate code from database or database from code
+4. **Reduced Cognitive Load**: No mental translation needed between different structures
+
+### When It Might Break Down
+
+Sometimes pure isomorphism isn't ideal:
+
+```
+DATABASE                        CODEBASE
+========                        ========
+                               
+[Legacy Table]                 [Clean Domain Model]
+PatientTbl                     class Patient
+- pt_id                        - Id
+- pt_fname    ─────X────>     - FullName (combined)
+- pt_lname    ─────┘          - Age (calculated from DOB)
+- pt_dob      ─────────>      - DateOfBirth
+```
+
+In this case, you might use **Data Transfer Objects (DTOs)** or **mapping layers** to bridge the gap while keeping your domain model clean.
+
+### Practical Use in Your Context
+
+For a radiology system, you might have:
+
+```csharp
+// Database-mirroring entities
+public class DicomStudy
+{
+    public int Id { get; set; }
+    public string StudyInstanceUID { get; set; }
+    public DateTime StudyDate { get; set; }
+    public string Modality { get; set; }
+    public int PatientId { get; set; }
+    public Patient Patient { get; set; }
+    public List<DicomSeries> Series { get; set; }
+}
+
+public class DicomSeries
+{
+    public int Id { get; set; }
+    public string SeriesInstanceUID { get; set; }
+    public int SeriesNumber { get; set; }
+    public int StudyId { get; set; }
+    public DicomStudy Study { get; set; }
+}
+```
+
+This isomorphic approach makes it straightforward to query and persist DICOM metadata using Entity Framework's LINQ queries that closely resemble SQL operations.

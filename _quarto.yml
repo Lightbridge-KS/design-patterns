@@ -28,6 +28,9 @@ book:
       chapters: 
         - "contents/api/restapi-design-bookstore.qmd"
         - "contents/api/restapi-ml-medical-image.qmd"
+    - part: Database
+      chapters: 
+        - "contents/pattern/db-isomorphic-mapping.qmd"
     - part: Repository Architecture
       chapters: 
         - "contents/repo-architect/microservice-acme-ai.qmd"
