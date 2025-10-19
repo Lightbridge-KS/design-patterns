@@ -39,6 +39,9 @@ book:
         - "contents/repo-architect/monorepos_react-nextjs-fastapi.qmd"
         - "contents/repo-architect/monorepos_reactvite_dotnet.qmd"
         - "contents/repo-architect/monorepos_react-nextjs_dotnet.qmd"
+    - part: LLM landscape
+      chapters: 
+        - "contents/llm/llm-backend-landscape-2025.qmd"
         
 bibliography: references.bib
 
