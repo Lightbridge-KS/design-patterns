@@ -42,6 +42,9 @@ book:
     - part: LLM landscape
       chapters: 
         - "contents/llm/llm-backend-landscape-2025.qmd"
+    - part: Bussiness
+      chapters: 
+        - "contents/bussiness/as_a_service.qmd"
         
 bibliography: references.bib
 
