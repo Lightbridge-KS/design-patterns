@@ -1,0 +1,345 @@
+# Layers vs Tiers
+
+## The Key Distinction
+
+
+**Layers** = **LOGICAL** separation (how you organize your code)  
+**Tiers** = **PHYSICAL** separation (where your code runs)
+
+This is one of the most commonly confused concepts in software architecture!
+
+
+## Layers: Logical Separation
+
+
+Layers exist **in your codebase** as a way to organize code by responsibility.
+
+```
+YOUR CODE STRUCTURE:
+
+project/
+├── presentation/
+│   ├── api_controllers.py
+│   └── views.py
+├── business/
+│   ├── stroke_detection.py
+│   └── aspects_calculator.py
+└── data/
+    ├── dicom_repository.py
+    └── pacs_connector.py
+```
+
+These are **3 layers**, all living in the same codebase.
+
+
+## Tiers: Physical Separation
+
+
+Tiers represent **where code actually runs** - different servers, containers, or processes.
+
+```
+PHYSICAL DEPLOYMENT:
+
+Server 1               Server 2               Server 3
+┌──────────┐          ┌──────────┐          ┌──────────┐
+│  Web     │          │  App     │          │  Database│
+│  Server  │          │  Server  │          │  Server  │
+└──────────┘          └──────────┘          └──────────┘
+
+   Tier 1                Tier 2                Tier 3
+```
+
+
+## N-Layer, 1-Tier: Most Common Scenario
+
+
+You can have **multiple layers** running on a **single tier** (one server/process).
+
+**Example: Monolithic Deployment**
+
+```
+LOGICAL VIEW (3 Layers):          PHYSICAL VIEW (1 Tier):
+
+┌─────────────────┐                ┌─────────────────────┐
+│  Presentation   │                │   Single Server     │
+│     Layer       │                │  (app.example.com)  │
+├─────────────────┤                │                     │
+│   Business      │     ─────>     │  All layers inside: │
+│     Layer       │                │  • Presentation     │
+├─────────────────┤                │  • Business         │
+│   Data Access   │                │  • Data Access      │
+│     Layer       │                │                     │
+└─────────────────┘                └──────────┬──────────┘
+                                              │
+                                              ▼
+                                   ┌─────────────────────┐
+                                   │  PostgreSQL Server  │
+                                   │  (External DB)      │
+                                   └─────────────────────┘
+```
+
+All your Python code runs in **one process**, but is still **logically separated** into layers.
+
+
+## Real-World Radiology AI Examples
+
+
+### Example 1: Development Setup (3 Layers, 1 Tier)
+
+
+```
+┌────────────────────────────────────────────┐
+│  YOUR MACBOOK PRO (localhost:8000)         │
+│                                            │
+│  FastAPI Application:                      │
+│  ┌──────────────────────────────┐          │
+│  │  API Layer                   │          │
+│  │  • /predict endpoint         │          │
+│  ├──────────────────────────────┤          │
+│  │  Business Layer              │          │
+│  │  • CT analysis logic         │          │
+│  ├──────────────────────────────┤          │
+│  │  Data Layer                  │          │
+│  │  • SQLite operations         │          │
+│  └──────────────────────────────┘          │
+│                                            │
+│  SQLite DB: stroke_ai.db                   │
+└────────────────────────────────────────────┘
+
+• 3 Layers (logical separation in code)
+• 1 Tier (everything runs on your laptop)
+```
+
+
+### Example 2: Production Setup (3 Layers, 2 Tiers)
+
+
+```
+┌─────────────────────────────────┐     ┌──────────────────┐
+│  HOSPITAL SERVER                │     │  DATABASE SERVER │
+│  (api.ramathibodi.ac.th)        │     │  (db.internal)   │
+│                                 │     │                  │
+│  Docker Container:              │     │                  │
+│  ┌───────────────────────┐      │     │                  │
+│  │  API Layer            │      │     │                  │
+│  │  • FastAPI routes     │      │     │                  │
+│  ├───────────────────────┤      │     │                  │
+│  │  Business Layer       │      │     │                  │
+│  │  • Stroke detection   │      │     │                  │
+│  ├───────────────────────┤      │     │                  │
+│  │  Data Layer           │◄─────┼─────┤  PostgreSQL      │
+│  │  • DB connector       │      │     │  Database        │
+│  └───────────────────────┘      │     │                  │
+└─────────────────────────────────┘     └──────────────────┘
+
+        Tier 1                               Tier 2
+
+• 3 Layers (same logical separation)
+• 2 Tiers (app server + database server)
+```
+
+
+### Example 3: Microservices Setup (3 Layers, 3 Tiers)
+
+
+```
+┌──────────────────┐   ┌──────────────────┐   ┌──────────────┐
+│  WEB SERVER      │   │  APP SERVER      │   │  DB SERVER   │
+│  (Tier 1)        │   │  (Tier 2)        │   │  (Tier 3)    │
+│                  │   │                  │   │              │
+│  React SPA       │   │  ┌─────────────┐ │   │              │
+│  • Dashboard     │   │  │API Layer    │ │   │              │
+│  • Results view  │   │  ├─────────────┤ │   │              │
+│                  │   │  │Business     │ │   │  PostgreSQL  │
+│      │           │   │  │Layer        │ │   │              │
+│      │           │   │  ├─────────────┤ │   │              │
+│      │  HTTP     │   │  │Data Layer   │◄┼───┤              │
+│      └───────────┼───┤► │             │ │   │              │
+│                  │   │  └─────────────┘ │   │              │
+└──────────────────┘   └──────────────────┘   └──────────────┘
+
+• Still 3 layers in the backend
+• But now deployed across 3 physical tiers
+```
+
+
+## Why This Matters in Practice
+
+
+### Scenario 1: Starting Small (1-Tier)
+
+
+When developing your CT stroke AI:
+
+```python
+# main.py - Everything runs here!
+from fastapi import FastAPI
+from business.stroke_detection import StrokeDetector
+from data.repositories import DicomRepository
+
+app = FastAPI()
+
+@app.post("/predict")
+async def predict_stroke(study_id: str):
+    # All layers execute in this same process
+    repo = DicomRepository()  # Data layer
+    detector = StrokeDetector()  # Business layer
+    
+    dicom_data = repo.get_study(study_id)
+    result = detector.analyze(dicom_data)
+    
+    return result  # Presentation layer
+```
+
+Run with: `uvicorn main:app --port 8000`
+
+**Deployment:**
+```
+┌────────────────────────┐
+│   Single Server        │
+│   • Python process     │
+│   • SQLite file        │
+└────────────────────────┘
+
+1 Tier, 3 Layers
+```
+
+
+### Scenario 2: Scaling Up (2-Tier)
+
+
+When usage grows at Ramathibodi:
+
+```python
+# Same code structure (3 layers)
+# But now deployed differently:
+
+# App server runs your FastAPI app
+# Database server runs PostgreSQL
+```
+
+**Deployment:**
+```
+┌────────────────────┐      ┌──────────────────┐
+│  App Server        │      │  DB Server       │
+│  • Python app      │─────>│  • PostgreSQL    │
+│  • All 3 layers    │      │                  │
+└────────────────────┘      └──────────────────┘
+
+2 Tiers, Same 3 Layers
+```
+
+**Your code doesn't change!** Just configuration:
+
+```python
+# Before (1-tier):
+DATABASE_URL = "sqlite:///./stroke_ai.db"
+
+# After (2-tier):
+DATABASE_URL = "postgresql://db.ramathibodi.ac.th:5432/stroke_ai"
+```
+
+
+### Scenario 3: High Availability (Multi-Tier)
+
+
+For production hospital system:
+
+```
+                         Load Balancer
+                              │
+                 ┌────────────┼────────────┐
+                 │            │            │
+                 ▼            ▼            ▼
+         ┌──────────┐  ┌──────────┐  ┌──────────┐
+Tier 1   │  App     │  │  App     │  │  App     │
+         │ Server 1 │  │ Server 2 │  │ Server 3 │
+         └─────┬────┘  └─────┬────┘  └─────┬────┘
+               │             │             │
+               └─────────────┼─────────────┘
+                             │
+                             ▼
+                      ┌──────────────┐
+Tier 2                │  Database    │
+                      │  (Primary)   │
+                      └──────┬───────┘
+                             │
+                             ▼
+                      ┌──────────────┐
+Tier 3                │  Database    │
+                      │  (Replica)   │
+                      └──────────────┘
+
+Multiple tiers for redundancy
+Same code with 3 layers on each app server
+```
+
+
+## Key Takeaways
+
+
+### Layers = Code Organization
+
+```
+Your codebase structure:
+    presentation/ ← Layer 1
+    business/     ← Layer 2  
+    data/         ← Layer 3
+```
+
+This is **decided by you** as the developer.
+
+
+### Tiers = Deployment Strategy
+
+```
+Where it runs:
+    Laptop         ← 1 tier (dev)
+    Server + DB    ← 2 tiers (staging)
+    Load balanced  ← N tiers (production)
+```
+
+This is **decided by ops/infrastructure** needs.
+
+
+### They Are Independent!
+
+```
+3-Layer, 1-Tier:  ✅ Very common (monolith)
+3-Layer, 2-Tier:  ✅ Common (app + db)
+3-Layer, 3-Tier:  ✅ Common (web + app + db)
+5-Layer, 1-Tier:  ✅ Possible (complex monolith)
+1-Layer, 3-Tier:  ❌ Rare (bad design)
+```
+
+
+## Practical Advice for Your Projects
+
+
+**When starting a radiology AI project:**
+
+1. **Always design with layers** (logical separation) - good architecture
+2. **Start with 1 tier** (monolith) - simple deployment
+3. **Scale to multiple tiers** when needed - based on performance/availability
+
+**Example progression:**
+```
+Development  →  Production V1  →  Production V2
+1 Tier          2 Tiers         3 Tiers
+(Your Mac)      (Server + DB)   (LB + Servers + DB)
+
+Same 3-layer code throughout!
+```
+
+
+## Summary
+
+
+**Layers**: Logical boundaries **in your code**  
+
+**Tiers**: Physical boundaries **in deployment**
+
+You write code thinking about **layers**.  
+You deploy code thinking about **tiers**.
+
+The beauty is: **well-layered code can be deployed to any tier configuration** without major changes!

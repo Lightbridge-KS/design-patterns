@@ -1,0 +1,261 @@
+# Layered Architecture Explained
+
+## What is Layered Architecture?
+
+
+Layered architecture is a design pattern that **separates an application into distinct horizontal layers**, where each layer has a specific responsibility. Think of it like a building with floors, where each floor serves a different purpose.
+
+```
+┌─────────────────────────────────────┐
+│     Presentation Layer (UI)         │  ← User interactions
+├─────────────────────────────────────┤
+│     Business Logic Layer            │  ← Core rules & workflows
+├─────────────────────────────────────┤
+│     Data Access Layer               │  ← Database operations
+├─────────────────────────────────────┤
+│     Database                        │  ← Persistent storage
+└─────────────────────────────────────┘
+```
+
+
+## Core Principle: Separation of Concerns
+
+
+Each layer handles **one specific concern** in your application:
+
+- **Presentation Layer**: How users interact with your app (UI, API endpoints)
+- **Business Layer**: What your app does (business rules, algorithms)
+- **Data Layer**: Where and how data is stored
+
+**Example from your radiology work:**
+
+```
+┌─────────────────────────────────────────┐
+│  Web UI / Mobile App                    │  ← Radiologist views results
+├─────────────────────────────────────────┤
+│  CT Stroke Detection Service            │  ← ASPECTS scoring logic
+├─────────────────────────────────────────┤
+│  DICOM Data Access / PACS Connector     │  ← Retrieve CT images
+├─────────────────────────────────────────┤
+│  PACS / Image Database                  │  ← Store medical images
+└─────────────────────────────────────────┘
+```
+
+
+## Key Benefits of Layered Architecture
+
+
+### 1. Code Reusability (DRY Principle)
+
+
+Common functionality in lower layers can be reused by multiple upper layers.
+
+```
+┌──────────────┐       ┌──────────────┐
+│  CT Module   │       │  CXR Module  │
+└──────┬───────┘       └──────┬───────┘
+       │                      │
+       └──────────┬───────────┘
+                  │
+          ┌───────▼────────┐
+          │  DICOM Parser  │  ← Shared utility
+          └────────────────┘
+```
+
+Instead of writing DICOM parsing code twice, both modules use the **same implementation**.
+
+
+### 2. Enforced Communication Rules
+
+
+Layers can only communicate with **adjacent layers** or through defined interfaces.
+
+```
+✅ ALLOWED:                    ❌ NOT ALLOWED:
+                              
+┌─────────┐                   ┌─────────┐
+│   UI    │                   │   UI    │─────┐
+└────┬────┘                   └─────────┘     │
+     │                                         │
+     ▼                                         │ (Skip layer)
+┌─────────┐                                    │
+│Business │                                    │
+└────┬────┘                                    │
+     │                                         ▼
+     ▼                                    ┌─────────┐
+┌─────────┐                              │Database │
+│Database │                              └─────────┘
+└─────────┘
+```
+
+This prevents **tight coupling** and maintains clean dependencies.
+
+
+### 3. Encapsulation & Easy Replacement
+
+
+You can **swap implementations** without affecting other layers, as long as the interface stays the same.
+
+**Example: Switching Database**
+
+```
+BEFORE:                          AFTER:
+┌─────────────┐                 ┌─────────────┐
+│  Business   │                 │  Business   │  (No changes needed!)
+└──────┬──────┘                 └──────┬──────┘
+       │                               │
+       ▼                               ▼
+┌─────────────┐                 ┌─────────────┐
+│ SQL Server  │                 │  PostgreSQL │  (Same interface)
+│   Layer     │    ══════>      │    Layer    │
+└─────────────┘                 └─────────────┘
+       │                               │
+       ▼                               ▼
+┌─────────────┐                 ┌─────────────┐
+│ SQL Server  │                 │ PostgreSQL  │
+│  Database   │                 │  Database   │
+└─────────────┘                 └─────────────┘
+```
+
+Your business logic doesn't need to change because it only depends on the **public interface**, not the implementation.
+
+
+### 4. Better Testing
+
+
+You can replace real implementations with **test doubles** (mocks, fakes) during testing.
+
+```
+PRODUCTION:                      TESTING:
+
+┌─────────────┐                 ┌─────────────┐
+│   Service   │                 │   Service   │
+└──────┬──────┘                 └──────┬──────┘
+       │                               │
+       ▼                               ▼
+┌─────────────┐                 ┌─────────────┐
+│   Real      │                 │    Fake     │  ← Returns known data
+│  PACS API   │                 │  PACS API   │  ← Runs in-memory
+└─────────────┘                 └─────────────┘  ← No network calls!
+
+• Tests are faster                    
+• Tests are predictable              
+• No infrastructure needed
+```
+
+
+## Common Layer Communication Patterns
+
+
+### Pattern 1: Strict Layering (Only Adjacent)
+
+
+```
+┌──────────┐
+│    UI    │ ────┐
+└──────────┘     │ ✅
+                 ▼
+┌──────────┐    
+│ Business │ ────┐
+└──────────┘     │ ✅
+                 ▼
+┌──────────┐    
+│   Data   │
+└──────────┘
+```
+
+**Pros**: Maximum encapsulation  
+**Cons**: May require passing data through intermediate layers
+
+
+### Pattern 2: Relaxed Layering (Skip Allowed)
+
+
+```
+┌──────────┐
+│    UI    │ ────┐
+└──────────┘     │ ✅
+     │           ▼
+     │      ┌──────────┐
+     │      │ Business │
+     │      └──────────┘
+     │           │
+     └───────────┤ ✅ (Both can access data)
+                 ▼
+            ┌──────────┐
+            │   Data   │
+            └──────────┘
+```
+
+**Pros**: More flexible, less passing around  
+**Cons**: Can lead to bypassing business logic
+
+
+## Real-World Radiology AI Example
+
+
+Let's map this to your CT stroke detection system:
+
+```
+┌────────────────────────────────────────────────┐
+│  WEB API LAYER (FastAPI/Flask)                 │
+│  • POST /api/v1/predict/ct-stroke              │
+│  • GET /api/v1/results/{study_id}              │
+└───────────────────┬────────────────────────────┘
+                    │
+                    ▼
+┌────────────────────────────────────────────────┐
+│  BUSINESS LOGIC LAYER                          │
+│  • ASPECTS score calculation                   │
+│  • NIHSS correlation                           │
+│  • Clinical recommendation engine              │
+│  • Model version management                    │
+└───────────────────┬────────────────────────────┘
+                    │
+                    ▼
+┌────────────────────────────────────────────────┐
+│  DATA ACCESS LAYER                             │
+│  • DICOM file handler                          │
+│  • PACS query service                          │
+│  • Result persistence (DB operations)          │
+│  • Audit log repository                        │
+└───────────────────┬────────────────────────────┘
+                    │
+                    ▼
+┌────────────────────────────────────────────────┐
+│  INFRASTRUCTURE LAYER                          │
+│  • PostgreSQL database                         │
+│  • PACS (via DIMSE/DICOMweb)                   │
+│  • File storage (S3/local)                     │
+└────────────────────────────────────────────────┘
+```
+
+
+## When to Use Layered Architecture?
+
+
+**✅ Good for:**
+- Enterprise applications
+- Applications with complex business logic
+- Systems requiring database abstraction
+- Projects with multiple developers
+- Medical systems requiring audit trails
+
+**❌ Consider alternatives for:**
+- Simple CRUD apps
+- Microservices (might use different patterns per service)
+- Real-time systems with strict performance requirements
+
+
+## Summary
+
+
+Layered architecture helps you manage complexity by:
+
+1. **Organizing** code by responsibility
+2. **Reusing** common functionality  
+3. **Protecting** against uncontrolled dependencies
+4. **Enabling** easy replacement of components
+5. **Simplifying** testing
+
+Think of it as creating **horizontal boundaries** in your application, where each layer knows only about the layer directly below it.
