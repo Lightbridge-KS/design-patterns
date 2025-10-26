@@ -1,0 +1,718 @@
+# Clean Architecture
+
+- [Common Web App Architecture (Microsoft)](https://learn.microsoft.com/en-gb/dotnet/architecture/modern-web-apps-azure/common-web-application-architectures)
+
+## Core Concept: Dependency Inversion
+
+
+Clean Architecture is fundamentally about **reversing the traditional dependency direction**. Instead of business logic depending on infrastructure, **infrastructure depends on business logic**.
+
+
+### Traditional Architecture (❌ Problems)
+
+
+```
+┌─────────────────────────────────────┐
+│  User Interface                     │
+└──────────────┬──────────────────────┘
+               │ depends on
+               ▼
+┌─────────────────────────────────────┐
+│  Business Logic                     │
+│  • Calls database directly          │
+│  • Depends on specific DB (SQL)     │
+│  • Tightly coupled to infrastructure│
+└──────────────┬──────────────────────┘
+               │ depends on
+               ▼
+┌─────────────────────────────────────┐
+│  Data Access / Infrastructure       │
+│  • SQL Server specific code         │
+│  • File system operations           │
+│  • External API calls               │
+└─────────────────────────────────────┘
+
+Problem: Business logic knows about database!
+Can't test without database
+Can't swap databases easily
+```
+
+
+### Clean Architecture (✅ Solution)
+
+
+```
+┌─────────────────────────────────────┐
+│  User Interface                     │
+└──────────────┬──────────────────────┘
+               │ depends on
+               ▼
+┌─────────────────────────────────────┐
+│  Application Core (Business Logic)  │
+│  • Defines INTERFACES               │
+│  • Contains domain models           │
+│  • Pure business rules              │
+│  • NO infrastructure knowledge      │
+└──────────────┬──────────────────────┘
+               │ defines interfaces
+               ▼
+┌─────────────────────────────────────┐
+│  Infrastructure                     │
+│  • IMPLEMENTS those interfaces      │
+│  • SQL/PostgreSQL/MongoDB           │
+│  • File system                      │
+│  • External APIs                    │
+└─────────────────────────────────────┘
+         ▲
+         │ implements interfaces from
+         └─ Dependency points INWARD!
+
+Benefit: Business logic is independent!
+Easy to test (mock interfaces)
+Easy to swap implementations
+```
+
+
+## The Onion Architecture View
+
+![Clean Architecture (Onion)](../../img/app-architect/clean-architect-onion.png){#fig-clean-architect-onion width="80%"}
+
+From your first image, let's break down each layer:
+
+
+```
+        ┌─────────────────────────────────────────┐
+        │         OUTER LAYER (Gray)              │
+        │                                         │
+        │  ┌─────────────────────────┐            │
+        │  │   User Interface        │            │
+        │  │   • Controllers         │            │
+        │  │   • View Models         │            │
+        │  │   • API Endpoints       │            │
+        │  └──────────┬──────────────┘            │
+        │             │                           │
+        │             │ uses                      │
+        │             ▼                           │
+        │  ┌──────────────────────────────┐       │
+        │  │   MIDDLE LAYER (Orange)      │       │
+        │  │   Application Core           │       │
+        │  │                              │       │
+        │  │   Domain Services            │       │
+        │  │   Business Rules             │       │
+        │  │                              │       │
+        │  │   ┌────────────────────┐     │       │
+        │  │   │  INNER CORE        │     │       │
+        │  │   │  • Entities        │     │       │
+        │  │   │  • Interfaces      │     │       │
+        │  │   └────────────────────┘     │       │
+        │  └──────────────────────────────┘       │
+        │             ▲                           │
+        │             │ implements                │
+        │  ┌──────────┴──────────────┐            │
+        │  │   Infrastructure        │            │
+        │  │   • Repositories        │            │
+        │  │   • Impl. Services      │            │
+        │  └─────────────────────────┘            │
+        │                                         │
+        └─────────────────────────────────────────┘
+                      ▲
+                      │ connects to
+        ┌─────────────┴────────────────┐
+        │  External Dependencies       │
+        │  • SQL Database              │
+        │  • Cloud Storage             │
+        │  • Email Service             │
+        └──────────────────────────────┘
+
+Key Rule: Dependencies flow INWARD →
+Inner layers know nothing about outer layers
+```
+
+
+## The Three Core Layers
+
+
+### Layer 1: Application Core (The Heart) 🧡
+
+
+**What it contains:**
+
+```
+Application Core/
+├── Entities/
+│   ├── Patient.py
+│   ├── CTScan.py
+│   └── StrokeResult.py
+├── Interfaces/
+│   ├── IDicomRepository.py
+│   ├── IStrokeDetector.py
+│   └── INotificationService.py
+└── Services/
+    ├── AspectsCalculator.py
+    └── ClinicalRecommendation.py
+```
+
+**Characteristics:**
+
+- **NO** dependencies on external libraries (except maybe core Python)
+- **NO** knowledge of databases, APIs, UI frameworks
+- Contains **pure business logic**
+- Defines **interfaces** (contracts) for what it needs
+
+
+**Example - Patient Entity:**
+
+```python
+# entities/patient.py
+from dataclasses import dataclass
+from datetime import datetime
+
+@dataclass
+class Patient:
+    """Pure domain entity - no database, no infrastructure"""
+    patient_id: str
+    name: str
+    date_of_birth: datetime
+    hn: str  # Hospital Number
+    
+    def get_age(self) -> int:
+        """Pure business logic"""
+        today = datetime.now()
+        return today.year - self.date_of_birth.year
+```
+
+
+**Example - Interface Definition:**
+
+```python
+# interfaces/idicom_repository.py
+from abc import ABC, abstractmethod
+from entities.ct_scan import CTScan
+
+class IDicomRepository(ABC):
+    """Interface defined in Application Core"""
+    
+    @abstractmethod
+    def get_scan_by_id(self, scan_id: str) -> CTScan:
+        """Get CT scan - HOW is not specified here!"""
+        pass
+    
+    @abstractmethod
+    def save_scan(self, scan: CTScan) -> None:
+        """Save CT scan - Could be SQL, MongoDB, file system!"""
+        pass
+```
+
+**The core doesn't care HOW, just WHAT!**
+
+
+### Layer 2: Infrastructure (The Implementation) 🟡
+
+
+**What it contains:**
+
+```
+Infrastructure/
+├── Repositories/
+│   ├── SqlDicomRepository.py      ← Implements IDicomRepository
+│   ├── PacsDicomRepository.py     ← Also implements IDicomRepository
+│   └── FileDicomRepository.py     ← Another implementation!
+├── Services/
+│   ├── EmailNotificationService.py ← Implements INotificationService
+│   └── SmsNotificationService.py   ← Alternative implementation
+└── ExternalApis/
+    └── PacsConnector.py
+```
+
+**Characteristics:**
+- **Implements interfaces** from Application Core
+- Contains **all infrastructure code**: databases, files, APIs, etc.
+- **Depends on** Application Core
+- Can be **swapped** without changing business logic
+
+
+**Example - SQL Implementation:**
+
+```python
+# infrastructure/repositories/sql_dicom_repository.py
+from sqlalchemy.orm import Session
+from interfaces.idicom_repository import IDicomRepository  # ← From Core!
+from entities.ct_scan import CTScan  # ← From Core!
+
+class SqlDicomRepository(IDicomRepository):
+    """SQL implementation of the interface"""
+    
+    def __init__(self, db_session: Session):
+        self.db = db_session
+    
+    def get_scan_by_id(self, scan_id: str) -> CTScan:
+        """Implementation uses SQL"""
+        result = self.db.query(CTScanModel).filter_by(id=scan_id).first()
+        return self._map_to_entity(result)
+    
+    def save_scan(self, scan: CTScan) -> None:
+        """Implementation uses SQL"""
+        model = self._map_to_model(scan)
+        self.db.add(model)
+        self.db.commit()
+```
+
+
+**Example - PACS Implementation:**
+
+```python
+# infrastructure/repositories/pacs_dicom_repository.py
+from pynetdicom import AE
+from interfaces.idicom_repository import IDicomRepository  # ← Same interface!
+from entities.ct_scan import CTScan
+
+class PacsDicomRepository(IDicomRepository):
+    """PACS implementation of the SAME interface"""
+    
+    def __init__(self, pacs_host: str, pacs_port: int):
+        self.ae = AE()
+        self.host = pacs_host
+        self.port = pacs_port
+    
+    def get_scan_by_id(self, scan_id: str) -> CTScan:
+        """Implementation uses DICOM network protocol"""
+        # Query PACS using DIMSE
+        dataset = self._query_pacs(scan_id)
+        return self._convert_to_entity(dataset)
+    
+    def save_scan(self, scan: CTScan) -> None:
+        """Implementation sends to PACS"""
+        dataset = self._convert_to_dicom(scan)
+        self._store_to_pacs(dataset)
+```
+
+**Same interface, completely different implementation!**
+
+
+### Layer 3: User Interface (The Presentation) 🔵
+
+
+**What it contains:**
+
+```
+UserInterface/
+├── Api/
+│   ├── Controllers/
+│   │   ├── StrokeDetectionController.py
+│   │   └── PatientController.py
+│   └── ViewModels/
+│       ├── StrokeResultViewModel.py
+│       └── PatientViewModel.py
+└── Web/
+    ├── templates/
+    └── static/
+```
+
+**Characteristics:**
+- Handles user interaction (HTTP requests, CLI, GUI)
+- **Depends on** Application Core
+- Converts between user format and domain format
+- **NO business logic** here!
+
+
+**Example - API Controller:**
+
+```python
+# api/controllers/stroke_detection_controller.py
+from fastapi import APIRouter, Depends
+from interfaces.idicom_repository import IDicomRepository
+from services.aspects_calculator import AspectsCalculator
+
+router = APIRouter()
+
+@router.post("/detect-stroke")
+def detect_stroke(
+    study_id: str,
+    # Dependency injection - we don't care which implementation!
+    dicom_repo: IDicomRepository = Depends(get_dicom_repository)
+):
+    """UI layer - just coordinates, no business logic"""
+    
+    # Get data using interface
+    ct_scan = dicom_repo.get_scan_by_id(study_id)
+    
+    # Use business logic from Application Core
+    calculator = AspectsCalculator()
+    aspects_score = calculator.calculate(ct_scan)
+    
+    # Return as JSON (UI concern)
+    return {
+        "study_id": study_id,
+        "aspects_score": aspects_score,
+        "status": "completed"
+    }
+```
+
+
+## Dependency Flow Visualization
+
+![Clean Architecture (layers)](../../img/app-architect/clean-architect-layers.png){#fig-clean-architect-layers width="80%"}
+
+From your second image, here's the dependency direction:
+
+
+```
+┌───────────────────────────────────────────────┐
+│           User Interface (Blue)               │
+│  • FastAPI routes                             │
+│  • React frontend                             │
+└──────────────────┬────────────────────────────┘
+                   │
+                   │ Solid arrow = Compile-time dependency
+                   ▼
+┌──────────────────────────────────────────┐
+│      Application Core (Red)              │
+│  • Business Logic                        │
+│  • Entities                              │
+│  • Interfaces (contracts)                │
+└──────────────────────────────────────────┘
+                   ▲                 ▲
+                   │                 │
+         ┌─────────┴──────┐   ┌──────┴────────┐
+         │                │   │               │
+         │ Implements     │   │ Uses (test)   │
+         │                │   │               │
+┌────────┴────────┐    ┌──┴───┴──────┐
+│ Infrastructure  │    │    Tests    │
+│ (Yellow)        │    │  (Purple)   │
+└─────────────────┘    └─────────────┘
+
+Key insight: Infrastructure knows about Core
+            Core doesn't know about Infrastructure!
+```
+
+
+## Real-World Radiology AI Example
+
+
+### Scenario: CT Stroke Detection System
+
+
+**Application Core (Business Logic):**
+
+```python
+# core/entities/ct_scan.py
+@dataclass
+class CTScan:
+    scan_id: str
+    patient_id: str
+    acquisition_date: datetime
+    modality: str
+    image_data: np.ndarray  # Pure data, no storage concern
+
+# core/interfaces/iscan_repository.py
+class IScanRepository(ABC):
+    @abstractmethod
+    def get_scan(self, scan_id: str) -> CTScan:
+        pass
+
+# core/services/stroke_detector.py
+class StrokeDetector:
+    """Pure business logic - no infrastructure!"""
+    
+    def __init__(self, model_path: str):
+        self.model = self._load_model(model_path)
+    
+    def calculate_aspects(self, scan: CTScan) -> int:
+        """Business rule: ASPECTS scoring"""
+        predictions = self.model.predict(scan.image_data)
+        score = self._calculate_score(predictions)
+        return score
+    
+    def generate_recommendation(self, aspects_score: int) -> str:
+        """Business rule: Clinical recommendation"""
+        if aspects_score >= 8:
+            return "Consider thrombolysis if within window"
+        elif aspects_score >= 6:
+            return "Consult stroke team for case discussion"
+        else:
+            return "Large infarct - thrombolysis not recommended"
+```
+
+
+**Infrastructure (Multiple Implementations):**
+
+```python
+# infrastructure/repositories/pacs_repository.py
+class PacsRepository(IScanRepository):
+    """Production: Get from hospital PACS"""
+    def get_scan(self, scan_id: str) -> CTScan:
+        # Complex DICOM network code
+        pass
+
+# infrastructure/repositories/file_repository.py
+class FileRepository(IScanRepository):
+    """Development: Get from local files"""
+    def get_scan(self, scan_id: str) -> CTScan:
+        # Simple file reading
+        pass
+
+# infrastructure/repositories/mock_repository.py
+class MockRepository(IScanRepository):
+    """Testing: Return fake data"""
+    def get_scan(self, scan_id: str) -> CTScan:
+        return CTScan(
+            scan_id="TEST001",
+            patient_id="P001",
+            acquisition_date=datetime.now(),
+            modality="CT",
+            image_data=np.zeros((512, 512))  # Fake image
+        )
+```
+
+
+**User Interface (API):**
+
+```python
+# api/main.py
+from fastapi import FastAPI, Depends
+
+app = FastAPI()
+
+def get_repository() -> IScanRepository:
+    """Dependency injection - choose implementation"""
+    if settings.ENV == "production":
+        return PacsRepository()
+    elif settings.ENV == "development":
+        return FileRepository()
+    else:
+        return MockRepository()
+
+@app.post("/analyze")
+def analyze_stroke(
+    scan_id: str,
+    repo: IScanRepository = Depends(get_repository)
+):
+    # Get scan (don't care from where!)
+    scan = repo.get_scan(scan_id)
+    
+    # Run business logic
+    detector = StrokeDetector(model_path="model.h5")
+    aspects_score = detector.calculate_aspects(scan)
+    recommendation = detector.generate_recommendation(aspects_score)
+    
+    return {
+        "aspects_score": aspects_score,
+        "recommendation": recommendation
+    }
+```
+
+
+## Benefits of Clean Architecture
+
+
+### 1. Easy Testing
+
+
+```python
+# tests/test_stroke_detector.py
+def test_aspects_calculation():
+    # Use mock repository - no real PACS needed!
+    mock_repo = MockRepository()
+    scan = mock_repo.get_scan("TEST001")
+    
+    detector = StrokeDetector(model_path="test_model.h5")
+    score = detector.calculate_aspects(scan)
+    
+    assert score >= 0 and score <= 10
+```
+
+**No database, no PACS, no network - just pure logic testing!**
+
+
+### 2. Easy Swapping
+
+
+```python
+# Swap from PACS to cloud storage:
+
+# Before:
+repository = PacsRepository(host="pacs.hospital.local")
+
+# After (just change ONE line):
+repository = CloudRepository(bucket="ct-scans-asia")
+
+# Business logic stays EXACTLY the same!
+detector = StrokeDetector(model_path="model.h5")
+scan = repository.get_scan(scan_id)  # ← Same interface
+result = detector.calculate_aspects(scan)  # ← Same logic
+```
+
+
+### 3. Independent Development
+
+
+```
+Team 1: Application Core          Team 2: Infrastructure
+┌─────────────────────┐          ┌──────────────────────┐
+│ Define interfaces   │  ──────> │ Implement interfaces │
+│ Write business      │          │ Build PACS connector │
+│ logic               │          │ Set up database      │
+│                     │          │                      │
+│ Can work with       │          │ Can work separately  │
+│ mock data           │          │ as long as interface │
+│                     │          │ is followed          │
+└─────────────────────┘          └──────────────────────┘
+
+Both teams work independently!
+Integration is just wiring up interfaces
+```
+
+
+### 4. Framework Independence
+
+
+Your Application Core doesn't depend on:
+- FastAPI
+- SQLAlchemy  
+- pydicom
+- Any external library!
+
+```
+Today:  FastAPI + PostgreSQL + PACS
+Tomorrow: Django + MongoDB + Cloud Storage
+Next year: GraphQL + DynamoDB + S3
+
+Application Core stays the same! ✨
+```
+
+
+## Project Structure Example
+
+
+```
+ct-stroke-ai/
+├── core/                          ← Application Core
+│   ├── entities/
+│   │   ├── patient.py
+│   │   ├── ct_scan.py
+│   │   └── stroke_result.py
+│   ├── interfaces/
+│   │   ├── iscan_repository.py
+│   │   ├── imodel_service.py
+│   │   └── inotification_service.py
+│   └── services/
+│       ├── stroke_detector.py
+│       ├── aspects_calculator.py
+│       └── clinical_advisor.py
+│
+├── infrastructure/                ← Infrastructure
+│   ├── repositories/
+│   │   ├── pacs_repository.py
+│   │   ├── sql_repository.py
+│   │   └── file_repository.py
+│   ├── services/
+│   │   ├── tensorflow_model_service.py
+│   │   └── email_notification_service.py
+│   └── database/
+│       └── postgres_context.py
+│
+├── api/                           ← User Interface
+│   ├── controllers/
+│   │   └── stroke_controller.py
+│   ├── viewmodels/
+│   │   └── stroke_result_vm.py
+│   └── main.py
+│
+└── tests/                         ← Tests
+    ├── unit/
+    │   └── test_stroke_detector.py
+    └── integration/
+        └── test_api.py
+```
+
+
+## Key Principles Summary
+
+
+### 1. Dependency Inversion Principle
+
+
+```
+❌ WRONG:
+Core → depends on → Infrastructure
+
+✅ RIGHT:
+Core ← depended on by ← Infrastructure
+```
+
+
+### 2. Interface Segregation
+
+
+```
+Core defines interfaces:
+interface IScanRepository {
+    get_scan()
+    save_scan()
+}
+
+Infrastructure implements:
+class PacsRepository implements IScanRepository
+class FileRepository implements IScanRepository
+class CloudRepository implements IScanRepository
+```
+
+
+### 3. Single Responsibility
+
+
+```
+✅ Application Core: Business rules ONLY
+✅ Infrastructure: Technical implementation ONLY
+✅ UI: User interaction ONLY
+```
+
+
+## When to Use Clean Architecture?
+
+
+**✅ Use when:**
+
+- Complex business logic
+- Long-term project (years)
+- Multiple developers/teams
+- Need flexibility to change tech stack
+- High testability requirements
+- Your radiology AI systems! 🏥
+
+
+**❌ Overkill for:**
+
+- Simple CRUD apps
+- Prototypes
+- Short-lived projects
+- Solo weekend projects
+
+
+## Summary
+
+
+**Clean Architecture** = **Onion Architecture** = **Hexagonal Architecture**
+
+**Core idea:** Business logic at the center, everything else depends on it.
+
+```
+┌─────────────────────────────────────┐
+│  The Dependency Rule:               │
+│                                     │
+│  Source code dependencies           │
+│  point INWARD only                  │
+│                                     │
+│  Outer circles → Inner circles ✅   │
+│  Inner circles → Outer circles ❌   │
+└─────────────────────────────────────┘
+```
+
+**Result:**
+
+- Testable business logic
+- Flexible infrastructure
+- Independent of frameworks
+- Independent of databases
+- Independent of UI
