@@ -1,0 +1,1113 @@
+# ASP.NET Clean Architecture 
+
+![ASP.NET Core - Clean Architecture](../../img/app-architect/asp-dotnet-core-architect.png){#fig-asp-dotnet-core-architect width="100%"}
+
+## The Three Projects Structure
+
+
+ASP.NET Core Clean Architecture typically uses **three separate projects** (not just folders!):
+
+
+```
+Solution: CTStrokeAI.sln
+│
+├── CTStrokeAI.Core/           ← Application Core Project (Red)
+├── CTStrokeAI.Infrastructure/ ← Infrastructure Project (Green)
+└── CTStrokeAI.Web/            ← ASP.NET Core Web App (Blue)
+```
+
+
+## Project 1: Application Core (Red) 🔴
+
+
+### What's Inside
+
+
+From your first screenshot, the Application Core contains:
+
+```
+CTStrokeAI.Core/
+├── Entities/
+│   ├── Patient.cs
+│   ├── CTScan.cs
+│   └── StrokeResult.cs
+├── Interfaces/
+│   ├── IScanRepository.cs
+│   ├── IStrokeDetector.cs
+│   └── INotificationService.cs
+├── Services/ (Domain Services)
+│   ├── AspectsCalculator.cs
+│   └── ClinicalAdvisor.cs
+├── Aggregates/
+│   └── StrokeAssessmentAggregate.cs
+├── ValueObjects/
+│   ├── AspectsScore.cs
+│   └── PatientAge.cs
+├── Specifications/
+│   └── StrokeEligibilitySpec.cs
+├── DomainEvents/
+│   └── StrokeDiagnosedEvent.cs
+└── Exceptions/
+    └── InvalidAspectsScoreException.cs
+```
+
+
+### Key Characteristics
+
+
+```
+✅ Contains:
+   • Pure business logic
+   • Domain entities
+   • Business rules
+   • Interface definitions
+   
+❌ Does NOT contain:
+   • Database code
+   • HTTP requests
+   • File I/O
+   • External service calls
+   • ANY infrastructure
+
+Dependencies: NONE (or minimal like System.Collections)
+```
+
+
+### Example Code: Entity (POCO - Plain Old CLR Object)
+
+
+```csharp
+// Core/Entities/Patient.cs
+namespace CTStrokeAI.Core.Entities
+{
+    public class Patient
+    {
+        public int Id { get; private set; }
+        public string HospitalNumber { get; private set; }
+        public string Name { get; private set; }
+        public DateTime DateOfBirth { get; private set; }
+        
+        // Pure business logic - no database concerns
+        public int GetAge()
+        {
+            var today = DateTime.Today;
+            var age = today.Year - DateOfBirth.Year;
+            if (DateOfBirth.Date > today.AddYears(-age)) age--;
+            return age;
+        }
+        
+        // Domain rule
+        public bool IsEligibleForThrombolysis()
+        {
+            int age = GetAge();
+            return age >= 18 && age <= 80;  // Business rule
+        }
+    }
+}
+```
+
+
+### Example Code: Interface
+
+
+```csharp
+// Core/Interfaces/IScanRepository.cs
+namespace CTStrokeAI.Core.Interfaces
+{
+    public interface IScanRepository
+    {
+        Task<CTScan> GetByIdAsync(int scanId);
+        Task<List<CTScan>> GetByPatientAsync(int patientId);
+        Task<CTScan> AddAsync(CTScan scan);
+        Task UpdateAsync(CTScan scan);
+        Task DeleteAsync(int scanId);
+    }
+    
+    // Core defines WHAT it needs, not HOW it's implemented
+}
+```
+
+
+### Example Code: Domain Service
+
+
+```csharp
+// Core/Services/AspectsCalculator.cs
+namespace CTStrokeAI.Core.Services
+{
+    public class AspectsCalculator
+    {
+        // Pure business logic
+        public int CalculateScore(CTScan scan)
+        {
+            int score = 10; // Start with 10 points
+            
+            // Business rules for ASPECTS scoring
+            if (HasInfarct(scan.M1Region)) score--;
+            if (HasInfarct(scan.M2Region)) score--;
+            if (HasInfarct(scan.M3Region)) score--;
+            // ... more regions
+            
+            return score;
+        }
+        
+        public string GetRecommendation(int aspectsScore)
+        {
+            // Clinical decision rules
+            return aspectsScore switch
+            {
+                >= 8 => "Good candidate for thrombolysis",
+                >= 6 => "Discuss with stroke team",
+                _ => "Large infarct - thrombolysis not recommended"
+            };
+        }
+        
+        private bool HasInfarct(RegionData region)
+        {
+            // Domain logic
+            return region.Hypodensity > 0.5;
+        }
+    }
+}
+```
+
+
+## Project 2: Infrastructure (Green) 🟢
+
+
+### What's Inside
+
+
+From your first screenshot, Infrastructure contains the **implementations**:
+
+```
+CTStrokeAI.Infrastructure/
+├── Data/
+│   ├── EfCoreDbContext.cs       ← Entity Framework
+│   └── Repositories/
+│       ├── EfScanRepository.cs  ← Implements IScanRepository
+│       └── CacheScanRepository.cs
+├── Services/
+│   ├── SmsService.cs            ← Implements INotificationService
+│   ├── EmailService.cs
+│   └── RedisCacheService.cs
+├── ExternalApis/
+│   ├── PacsConnector.cs
+│   ├── AzureServiceBusAccessor.cs
+│   └── GithubApiClient.cs
+└── InMemoryCache/
+    └── MemoryCacheAdapter.cs
+```
+
+
+### Key Characteristics
+
+
+```
+✅ Contains:
+   • Database implementations (EF Core)
+   • External API clients
+   • File system operations
+   • Cache implementations
+   • Email/SMS services
+   • Implements interfaces from Core
+   
+Dependencies:
+   • Application Core (implements its interfaces)
+   • External packages (EF Core, Redis, etc.)
+```
+
+
+### Example Code: Repository Implementation
+
+
+```csharp
+// Infrastructure/Data/Repositories/EfScanRepository.cs
+using CTStrokeAI.Core.Entities;
+using CTStrokeAI.Core.Interfaces;
+using Microsoft.EntityFrameworkCore;
+
+namespace CTStrokeAI.Infrastructure.Data.Repositories
+{
+    public class EfScanRepository : IScanRepository
+    {
+        private readonly AppDbContext _dbContext;
+        
+        public EfScanRepository(AppDbContext dbContext)
+        {
+            _dbContext = dbContext;
+        }
+        
+        public async Task<CTScan> GetByIdAsync(int scanId)
+        {
+            // Entity Framework implementation
+            return await _dbContext.CTScans
+                .Include(s => s.Patient)
+                .FirstOrDefaultAsync(s => s.Id == scanId);
+        }
+        
+        public async Task<List<CTScan>> GetByPatientAsync(int patientId)
+        {
+            return await _dbContext.CTScans
+                .Where(s => s.PatientId == patientId)
+                .OrderByDescending(s => s.AcquisitionDate)
+                .ToListAsync();
+        }
+        
+        public async Task<CTScan> AddAsync(CTScan scan)
+        {
+            await _dbContext.CTScans.AddAsync(scan);
+            await _dbContext.SaveChangesAsync();
+            return scan;
+        }
+        
+        // ... other methods
+    }
+}
+```
+
+
+### Example Code: External Service Implementation
+
+
+```csharp
+// Infrastructure/Services/EmailService.cs
+using CTStrokeAI.Core.Interfaces;
+using SendGrid;
+using SendGrid.Helpers.Mail;
+
+namespace CTStrokeAI.Infrastructure.Services
+{
+    public class EmailService : INotificationService
+    {
+        private readonly SendGridClient _client;
+        private readonly string _fromEmail;
+        
+        public EmailService(string apiKey, string fromEmail)
+        {
+            _client = new SendGridClient(apiKey);
+            _fromEmail = fromEmail;
+        }
+        
+        public async Task NotifyAsync(string recipient, string message)
+        {
+            var from = new EmailAddress(_fromEmail);
+            var to = new EmailAddress(recipient);
+            var msg = MailHelper.CreateSingleEmail(from, to, 
+                "Stroke Detection Alert", message, message);
+                
+            await _client.SendEmailAsync(msg);
+        }
+    }
+}
+```
+
+
+### Example Code: DbContext
+
+
+```csharp
+// Infrastructure/Data/AppDbContext.cs
+using Microsoft.EntityFrameworkCore;
+using CTStrokeAI.Core.Entities;
+
+namespace CTStrokeAI.Infrastructure.Data
+{
+    public class AppDbContext : DbContext
+    {
+        public AppDbContext(DbContextOptions<AppDbContext> options)
+            : base(options)
+        {
+        }
+        
+        public DbSet<Patient> Patients { get; set; }
+        public DbSet<CTScan> CTScans { get; set; }
+        public DbSet<StrokeResult> StrokeResults { get; set; }
+        
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            // EF Core configuration
+            modelBuilder.Entity<Patient>()
+                .HasMany(p => p.Scans)
+                .WithOne(s => s.Patient)
+                .HasForeignKey(s => s.PatientId);
+        }
+    }
+}
+```
+
+
+## Project 3: ASP.NET Core Web App (Blue) 🔵
+
+
+### What's Inside
+
+
+From your first screenshot, the Web App contains:
+
+```
+CTStrokeAI.Web/
+├── Controllers/
+│   ├── StrokeDetectionController.cs
+│   └── PatientController.cs
+├── ViewModels/
+│   ├── StrokeResultViewModel.cs
+│   └── PatientViewModel.cs
+├── Views/
+│   ├── Home/
+│   └── Stroke/
+├── Filters/
+│   ├── ResponseCachingFilter.cs
+│   └── ModelValidationFilter.cs
+├── Program.cs              ← Entry point
+├── Startup.cs              ← DI configuration
+└── appsettings.json
+```
+
+
+### Key Characteristics
+
+
+```
+✅ Contains:
+   • MVC Controllers
+   • Razor Views
+   • ViewModels (DTOs)
+   • Filters/Middleware
+   • Dependency injection setup
+   • HTTP concerns
+   
+Dependencies:
+   • Application Core
+   • Infrastructure (at startup only)
+```
+
+
+### Example Code: Controller
+
+
+```csharp
+// Web/Controllers/StrokeDetectionController.cs
+using Microsoft.AspNetCore.Mvc;
+using CTStrokeAI.Core.Interfaces;
+using CTStrokeAI.Core.Services;
+
+namespace CTStrokeAI.Web.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    public class StrokeDetectionController : ControllerBase
+    {
+        private readonly IScanRepository _scanRepo;
+        private readonly AspectsCalculator _calculator;
+        private readonly INotificationService _notifier;
+        
+        public StrokeDetectionController(
+            IScanRepository scanRepo,
+            AspectsCalculator calculator,
+            INotificationService notifier)
+        {
+            _scanRepo = scanRepo;
+            _calculator = calculator;
+            _notifier = notifier;
+        }
+        
+        [HttpPost("analyze/{scanId}")]
+        public async Task<IActionResult> AnalyzeScan(int scanId)
+        {
+            // Get scan using interface (don't care about implementation!)
+            var scan = await _scanRepo.GetByIdAsync(scanId);
+            
+            if (scan == null)
+                return NotFound();
+            
+            // Use business logic from Core
+            int aspectsScore = _calculator.CalculateScore(scan);
+            string recommendation = _calculator.GetRecommendation(aspectsScore);
+            
+            // Notify using interface
+            if (aspectsScore <= 5)
+            {
+                await _notifier.NotifyAsync(
+                    "stroke-team@ramathibodi.go.th",
+                    $"Critical: Low ASPECTS score ({aspectsScore}) for scan {scanId}"
+                );
+            }
+            
+            // Return ViewModel
+            return Ok(new StrokeResultViewModel
+            {
+                ScanId = scanId,
+                AspectsScore = aspectsScore,
+                Recommendation = recommendation
+            });
+        }
+    }
+}
+```
+
+
+### Example Code: Dependency Injection Setup
+
+
+```csharp
+// Web/Program.cs (ASP.NET Core 6+)
+using CTStrokeAI.Core.Interfaces;
+using CTStrokeAI.Core.Services;
+using CTStrokeAI.Infrastructure.Data;
+using CTStrokeAI.Infrastructure.Data.Repositories;
+using CTStrokeAI.Infrastructure.Services;
+using Microsoft.EntityFrameworkCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container
+builder.Services.AddControllers();
+
+// Database
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("DefaultConnection")
+    ));
+
+// Register Core services
+builder.Services.AddScoped<AspectsCalculator>();
+
+// Register Infrastructure implementations
+builder.Services.AddScoped<IScanRepository, EfScanRepository>();
+builder.Services.AddScoped<INotificationService, EmailService>(sp =>
+    new EmailService(
+        builder.Configuration["SendGrid:ApiKey"],
+        builder.Configuration["SendGrid:FromEmail"]
+    ));
+
+// Add caching
+builder.Services.AddMemoryCache();
+builder.Services.AddScoped<INotificationService, SmsService>();
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline
+app.UseRouting();
+app.MapControllers();
+
+app.Run();
+```
+
+
+## Dependency Flow Visualization
+
+
+### Compile-Time Dependencies
+
+
+```
+┌─────────────────────────────────────────────────┐
+│         ASP.NET Core Web App (Blue)             │
+│                                                 │
+│  Controllers, Views, Filters                    │
+└─────────────┬────────────────┬──────────────────┘
+              │                │
+              │ references     │ references
+              │                │ (startup only)
+              ▼                ▼
+┌─────────────────────┐  ┌────────────────────────┐
+│ Application Core    │  │  Infrastructure        │
+│     (Red)           │  │     (Green)            │
+│                     │  │                        │
+│ • Entities          │  │ • EF Core DbContext    │
+│ • Interfaces        │◄─┤ • Repositories (impl)  │
+│ • Domain Services   │  │ • External APIs        │
+└─────────────────────┘  │ • Email/SMS Services   │
+         ▲               └────────────────────────┘
+         │                         │
+         │ NO dependency!          │ uses
+         │                         ▼
+         │               ┌─────────────────────┐
+         │               │ External Resources  │
+         │               │ • SQL Database      │
+         └───────────────┤ • Redis Cache       │
+                         │ • SendGrid API      │
+                         └─────────────────────┘
+
+Key: Infrastructure depends on Core
+     Core depends on NOTHING
+     Web depends on both (but uses Core interfaces)
+```
+
+
+### Runtime Dependencies (via Dependency Injection)
+
+
+```
+HTTP Request arrives
+       │
+       ▼
+┌─────────────────┐
+│   Controller    │
+│                 │
+│  Needs:         │
+│  • IScanRepo    │◄──┐
+│  • INotifier    │◄──┤  DI Container injects
+└─────────────────┘   │  concrete implementations
+                      │
+                      │
+        ┌─────────────┴─────────────┐
+        │                           │
+┌───────▼────────┐         ┌────────▼──────────┐
+│ EfScanRepo     │         │  EmailService     │
+│ (from Infra)   │         │  (from Infra)     │
+└────────────────┘         └───────────────────┘
+
+Controller only knows about interfaces!
+DI provides the implementations at runtime
+```
+
+
+## Testing Strategy
+
+
+### Unit Tests (Figure 5-10) - Test Application Core
+
+![ASP.NET Unittest](../../img/app-architect/unit-test.png){#fig-asp-dotnet-unit-test width="80%"}
+
+From your second screenshot, **Unit Tests target Application Core in isolation**:
+
+
+```
+┌─────────────────────────────────────────────┐
+│              Unit Test Project              │
+│                  (Green)                    │
+│                                             │
+│  Tests pure business logic with NO external │
+│  dependencies                               │
+└──────────────────┬──────────────────────────┘
+                   │
+                   │ tests
+                   ▼
+┌─────────────────────────────────────────────┐
+│          Application Core (Red)             │
+│                                             │
+│  ┌───────────────────────────┐              │
+│  │   Entities + Interfaces   │              │
+│  │   Domain Services         │              │
+│  └───────────────────────────┘              │
+└─────────────────────────────────────────────┘
+
+NO Database, NO APIs, NO External Services!
+Fast, isolated, reliable tests
+```
+
+
+**Example - Unit Test:**
+
+```csharp
+// Tests/Core/Services/AspectsCalculatorTests.cs
+using Xunit;
+using CTStrokeAI.Core.Services;
+using CTStrokeAI.Core.Entities;
+
+namespace CTStrokeAI.Tests.Core.Services
+{
+    public class AspectsCalculatorTests
+    {
+        [Fact]
+        public void CalculateScore_NoInfarcts_ReturnsFullScore()
+        {
+            // Arrange
+            var calculator = new AspectsCalculator();
+            var scan = new CTScan
+            {
+                M1Region = new RegionData { Hypodensity = 0.1 },
+                M2Region = new RegionData { Hypodensity = 0.1 },
+                M3Region = new RegionData { Hypodensity = 0.1 }
+                // All regions normal
+            };
+            
+            // Act
+            int score = calculator.CalculateScore(scan);
+            
+            // Assert
+            Assert.Equal(10, score);
+        }
+        
+        [Fact]
+        public void GetRecommendation_HighScore_RecommendsThrombolysis()
+        {
+            // Arrange
+            var calculator = new AspectsCalculator();
+            
+            // Act
+            string recommendation = calculator.GetRecommendation(9);
+            
+            // Assert
+            Assert.Contains("thrombolysis", recommendation.ToLower());
+        }
+        
+        [Theory]
+        [InlineData(10, "Good candidate")]
+        [InlineData(8, "Good candidate")]
+        [InlineData(7, "Discuss with stroke team")]
+        [InlineData(5, "not recommended")]
+        public void GetRecommendation_VariousScores_ReturnsExpected(
+            int score, string expectedText)
+        {
+            // Arrange
+            var calculator = new AspectsCalculator();
+            
+            // Act
+            string recommendation = calculator.GetRecommendation(score);
+            
+            // Assert
+            Assert.Contains(expectedText, recommendation);
+        }
+    }
+}
+```
+
+
+**Unit Test with Mock (Test with Interface):**
+
+```csharp
+// Tests/Core/Services/PatientServiceTests.cs
+using Xunit;
+using Moq;
+using CTStrokeAI.Core.Interfaces;
+using CTStrokeAI.Core.Services;
+using CTStrokeAI.Core.Entities;
+
+namespace CTStrokeAI.Tests.Core.Services
+{
+    public class PatientServiceTests
+    {
+        [Fact]
+        public async Task ProcessStrokeScan_CriticalCase_SendsNotification()
+        {
+            // Arrange
+            var mockNotifier = new Mock<INotificationService>();
+            var mockRepo = new Mock<IScanRepository>();
+            
+            var scan = new CTScan { Id = 1, PatientId = 100 };
+            mockRepo.Setup(r => r.GetByIdAsync(1))
+                .ReturnsAsync(scan);
+            
+            var calculator = new AspectsCalculator();
+            var service = new StrokeAnalysisService(
+                mockRepo.Object,
+                calculator,
+                mockNotifier.Object
+            );
+            
+            // Act
+            await service.AnalyzeScanAsync(1);
+            
+            // Assert
+            mockNotifier.Verify(
+                n => n.NotifyAsync(
+                    It.IsAny<string>(),
+                    It.IsAny<string>()),
+                Times.Once
+            );
+        }
+    }
+}
+```
+
+
+**Benefits of Unit Tests:**
+
+```
+✅ FAST: No database, no network, no I/O
+✅ ISOLATED: Test business logic alone
+✅ RELIABLE: No external dependencies = no flaky tests
+✅ EASY TO WRITE: Simple setup, no infrastructure
+
+Test Speed:
+Unit Tests: ~1-10 ms per test
+Integration Tests: ~100-1000 ms per test
+```
+
+
+### Integration Tests (Figure 5-11) - Test Infrastructure
+
+![ASP.NET Integration Test](../../img/app-architect/integration-test.png){#fig-asp-dotnet-integration-test width="80%"}
+
+From your third screenshot, **Integration Tests target Infrastructure with real dependencies**:
+
+
+```
+┌──────────────────────────────────────────────┐
+│         Integration Test Project             │
+│              (Green)                         │
+│                                              │
+│  Tests infrastructure implementations with   │
+│  REAL external dependencies                  │
+└──────────────┬───────────────────────────────┘
+               │
+               │ tests
+               ▼
+┌──────────────────────────────────────────────┐
+│        Infrastructure (Yellow)               │
+│                                              │
+│  • Repositories                              │
+│  • External API clients                      │
+└────────────────┬─────────────────────────────┘
+                 │
+                 │ connects to
+                 ▼
+┌──────────────────────────────────────────────┐
+│       External Dependencies                  │
+│  • SQL Database (test DB)                    │
+│  • Cloud Storage                             │
+│  • Email service                             │
+└──────────────────────────────────────────────┘
+
+Uses REAL infrastructure
+Tests actual implementations
+```
+
+
+**Example - Integration Test:**
+
+```csharp
+// Tests/Infrastructure/Data/EfScanRepositoryTests.cs
+using Xunit;
+using Microsoft.EntityFrameworkCore;
+using CTStrokeAI.Infrastructure.Data;
+using CTStrokeAI.Infrastructure.Data.Repositories;
+using CTStrokeAI.Core.Entities;
+
+namespace CTStrokeAI.Tests.Infrastructure.Data
+{
+    public class EfScanRepositoryTests : IDisposable
+    {
+        private readonly AppDbContext _context;
+        private readonly EfScanRepository _repository;
+        
+        public EfScanRepositoryTests()
+        {
+            // Use in-memory database for testing
+            var options = new DbContextOptionsBuilder<AppDbContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+            
+            _context = new AppDbContext(options);
+            _repository = new EfScanRepository(_context);
+        }
+        
+        [Fact]
+        public async Task AddAsync_ValidScan_SavesToDatabase()
+        {
+            // Arrange
+            var patient = new Patient { HospitalNumber = "HN001" };
+            var scan = new CTScan
+            {
+                Patient = patient,
+                AcquisitionDate = DateTime.Now,
+                Modality = "CT"
+            };
+            
+            // Act
+            var result = await _repository.AddAsync(scan);
+            
+            // Assert
+            Assert.NotEqual(0, result.Id); // ID was assigned
+            var savedScan = await _repository.GetByIdAsync(result.Id);
+            Assert.NotNull(savedScan);
+            Assert.Equal("CT", savedScan.Modality);
+        }
+        
+        [Fact]
+        public async Task GetByPatientAsync_MultipleScans_ReturnsAllScans()
+        {
+            // Arrange
+            var patient = new Patient { HospitalNumber = "HN002" };
+            await _context.Patients.AddAsync(patient);
+            await _context.SaveChangesAsync();
+            
+            await _repository.AddAsync(new CTScan
+            {
+                PatientId = patient.Id,
+                AcquisitionDate = DateTime.Now.AddDays(-2)
+            });
+            await _repository.AddAsync(new CTScan
+            {
+                PatientId = patient.Id,
+                AcquisitionDate = DateTime.Now.AddDays(-1)
+            });
+            
+            // Act
+            var scans = await _repository.GetByPatientAsync(patient.Id);
+            
+            // Assert
+            Assert.Equal(2, scans.Count);
+            Assert.True(scans[0].AcquisitionDate > scans[1].AcquisitionDate);
+            // Should be ordered by date descending
+        }
+        
+        public void Dispose()
+        {
+            _context.Dispose();
+        }
+    }
+}
+```
+
+
+**Integration Test with Real Database:**
+
+```csharp
+// Tests/Infrastructure/ExternalApis/PacsConnectorTests.cs
+using Xunit;
+using CTStrokeAI.Infrastructure.ExternalApis;
+
+namespace CTStrokeAI.Tests.Infrastructure.ExternalApis
+{
+    // These tests require a real test PACS server
+    [Collection("PACS Tests")]
+    public class PacsConnectorTests
+    {
+        private readonly string _testPacsHost = "test-pacs.ramathibodi.local";
+        private readonly int _testPacsPort = 11112;
+        
+        [Fact]
+        public async Task QueryStudy_ValidStudyId_ReturnsData()
+        {
+            // Arrange
+            var connector = new PacsConnector(_testPacsHost, _testPacsPort);
+            string testStudyId = "1.2.840.113619.2.55.3.test";
+            
+            // Act
+            var study = await connector.QueryStudyAsync(testStudyId);
+            
+            // Assert
+            Assert.NotNull(study);
+            Assert.Equal(testStudyId, study.StudyInstanceUID);
+        }
+        
+        [Fact]
+        public async Task RetrieveSeries_ExistingSeries_DownloadsImages()
+        {
+            // Arrange
+            var connector = new PacsConnector(_testPacsHost, _testPacsPort);
+            
+            // Act
+            var images = await connector.RetrieveSeriesAsync(
+                "1.2.840.test.series"
+            );
+            
+            // Assert
+            Assert.NotEmpty(images);
+            Assert.True(images.Count > 0);
+        }
+    }
+}
+```
+
+
+## Complete Radiology AI Example
+
+
+### Project Structure
+
+
+```
+CTStrokeAI.sln
+│
+├── src/
+│   ├── CTStrokeAI.Core/              ← Application Core
+│   │   ├── Entities/
+│   │   │   ├── Patient.cs
+│   │   │   ├── CTScan.cs
+│   │   │   └── StrokeResult.cs
+│   │   ├── Interfaces/
+│   │   │   ├── IScanRepository.cs
+│   │   │   ├── IModelService.cs
+│   │   │   └── INotificationService.cs
+│   │   └── Services/
+│   │       ├── AspectsCalculator.cs
+│   │       └── StrokeAnalysisService.cs
+│   │
+│   ├── CTStrokeAI.Infrastructure/    ← Infrastructure
+│   │   ├── Data/
+│   │   │   ├── AppDbContext.cs
+│   │   │   └── Repositories/
+│   │   │       └── EfScanRepository.cs
+│   │   ├── Services/
+│   │   │   ├── TensorFlowModelService.cs
+│   │   │   └── SendGridEmailService.cs
+│   │   └── ExternalApis/
+│   │       └── PacsConnector.cs
+│   │
+│   └── CTStrokeAI.Web/               ← ASP.NET Core Web
+│       ├── Controllers/
+│       │   └── StrokeController.cs
+│       ├── ViewModels/
+│       │   └── StrokeResultViewModel.cs
+│       ├── Program.cs
+│       └── appsettings.json
+│
+└── tests/
+    ├── CTStrokeAI.UnitTests/         ← Unit Tests
+    │   └── Core/
+    │       └── Services/
+    │           └── AspectsCalculatorTests.cs
+    │
+    └── CTStrokeAI.IntegrationTests/  ← Integration Tests
+        └── Infrastructure/
+            └── Data/
+                └── EfScanRepositoryTests.cs
+```
+
+
+### Dependency Graph
+
+
+```
+┌───────────────────────────────────────────────────────┐
+│                  CTStrokeAI.Web                       │
+│                                                       │
+│  Program.cs ─┐                                        │
+│              │  configures DI                         │
+└──────────────┼────────────────────────────────────────┘
+               │
+       ┌───────┴────────┬─────────────────┐
+       │                │                 │
+       ▼                ▼                 │
+┌─────────────┐  ┌────────────────┐       │
+│  Core       │  │ Infrastructure │       │
+│  (Pure)     │◄─┤ (Implements)   │       │
+└─────────────┘  └────────┬───────┘       │
+                          │               │
+                          ▼               │
+                 ┌────────────────┐       │
+                 │  EF Core       │       │
+                 │  SendGrid      │       │
+                 │  pydicom       │       │
+                 └────────────────┘       │
+                                          │
+       ┌──────────────────────────────────┘
+       │
+       ▼
+┌────────────────┐
+│  Unit Tests    │  (test Core)
+└────────────────┘
+
+┌────────────────┐
+│  Integration   │  (test Infrastructure)
+│  Tests         │
+└────────────────┘
+```
+
+
+## Key Benefits of This Architecture
+
+
+### 1. Testability
+
+
+```
+Unit Tests:
+✅ Test business logic in isolation
+✅ Fast (milliseconds)
+✅ No external dependencies
+✅ Run on every commit
+
+Integration Tests:
+✅ Test infrastructure with real systems
+✅ Catch integration issues
+✅ Confidence before deployment
+```
+
+
+### 2. Flexibility
+
+
+```
+Switch Database:
+SQL Server → PostgreSQL
+Just change Infrastructure project
+Core remains unchanged!
+
+Switch Notification:
+Email → SMS → Slack
+Just change Infrastructure project
+Core remains unchanged!
+```
+
+
+### 3. Maintainability
+
+
+```
+Clear separation:
+• Core = Business rules (rarely changes)
+• Infrastructure = Tech details (changes often)
+• Web = UI/API (changes frequently)
+
+Each team can work independently
+```
+
+
+### 4. Framework Independence
+
+
+```
+Application Core has NO dependency on:
+❌ ASP.NET Core
+❌ Entity Framework
+❌ Any external library
+
+Can move to:
+✅ Different web framework (Blazor, gRPC)
+✅ Different ORM (Dapper, NPoco)
+✅ Different platform (Azure Functions, AWS Lambda)
+```
+
+
+## Summary
+
+
+**ASP.NET Core Clean Architecture** uses **three projects**:
+
+
+```
+┌─────────────────────────────────────────┐
+│  Web (Blue) - ASP.NET Core              │
+│  • Controllers, Views, Filters          │
+│  • Coordinates requests                 │
+└───────┬─────────────────────────────────┘
+        │ depends on both
+    ┌───┴────┬────────────────────┐
+    ▼        ▼                    │
+┌────────┐  ┌──────────────────┐  │
+│ Core   │  │ Infrastructure   │  │
+│ (Red)  │◄─┤ (Green)          │  │
+│        │  │                  │  │
+│ Pure   │  │ Implements       │  │
+│ Logic  │  │ interfaces       │  │
+└────────┘  └──────┬───────────┘  │
+                   │              │
+                   ▼              │
+            ┌──────────────┐      │
+            │  External    │      │
+            │  Systems     │      │
+            └──────────────┘      │
+                                  │
+            ┌──────────────────┐  │
+            │  Unit Tests      │──┘
+            │  (Green)         │
+            └──────────────────┘
+            
+            ┌──────────────────┐
+            │  Integration     │
+            │  Tests (Green)   │
+            └──────────────────┘
+```
+
+
+**Three key principles:**
+
+1. **Dependency Inversion**: Infrastructure → Core (not Core → Infrastructure)
+2. **Interface Segregation**: Core defines interfaces, Infrastructure implements
+3. **Separation of Concerns**: Each project has ONE responsibility

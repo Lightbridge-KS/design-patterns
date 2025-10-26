@@ -37,6 +37,7 @@ book:
         - "contents/app-architect/app-arch-layered-vs-tier.qmd"
         - "contents/app-architect/app-arch-scale-up-vs-out.qmd"
         - "contents/app-architect/app-arch-clean-architecture.qmd"
+        - "contents/app-architect/app-arch-clean-architect-dotnet.qmd"
     - part: Repository Architecture
       chapters: 
         - "contents/repo-architect/microservice-acme-ai.qmd"
@@ -56,6 +57,7 @@ bibliography: references.bib
 
 format:
   html:
+    lightbox: true
     theme:
       light:
         - simplex
