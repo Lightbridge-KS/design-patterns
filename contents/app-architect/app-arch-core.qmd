@@ -1,0 +1,1451 @@
+# App Core
+
+
+```
+┌─────────────────────────────────────────────────┐
+│          APPLICATION CORE TYPES                 │
+│                                                 │
+│  1. Entities                                    │
+│     • Business objects with identity            │
+│     • Patient, CTScan, StrokeResult             │
+│                                                 │
+│  2. Aggregates                                  │
+│     • Groups of entities                        │
+│     • StrokeAssessment (root + children)        │
+│                                                 │
+│  3. Interfaces                                  │
+│     • Contracts for infrastructure              │
+│     • IScanRepository, IModelService            │
+│                                                 │
+│  4. Domain Services                             │
+│     • Business logic across entities            │
+│     • AspectsCalculator, EligibilityChecker     │
+│                                                 │
+│  5. Specifications                              │
+│     • Reusable query criteria                   │
+│     • BrainScanSpec, CompletedScanSpec          │
+│                                                 │
+│  6. Exceptions & Guards                         │
+│     • Domain-specific errors                    │
+│     • InvalidAspectsScore, Guard clauses        │
+│                                                 │
+│  7. Domain Events                               │
+│     • Things that happened                      │
+│     • StrokeDetectedEvent                       │
+│                                                 │
+│  8. DTOs                                        │
+│     • Data transfer objects                     │
+│     • StrokeAnalysisResult                      │
+│                                                 │
+│  ALL are pure business logic!                   │
+│  NO infrastructure dependencies!                │
+└─────────────────────────────────────────────────┘
+```
+
+
+## Overview: What Goes in Application Core?
+
+
+The Application Core is the **heart of your business logic**. It contains all the types that represent your domain model and business rules.
+
+
+```
+Application Core Contents:
+
+┌───────────────────────────────────────────────┐
+│         APPLICATION CORE                      │
+│                                               │
+│  ┌──────────────┐      ┌──────────────┐       │
+│  │  Entities    │      │ Aggregates   │       │
+│  │  (Data +     │      │ (Entity      │       │
+│  │  Behavior)   │      │  Groups)     │       │
+│  └──────────────┘      └──────────────┘       │
+│                                               │
+│  ┌──────────────┐      ┌──────────────┐       │
+│  │ Interfaces   │      │   Domain     │       │
+│  │ (Contracts)  │      │  Services    │       │
+│  └──────────────┘      └──────────────┘       │
+│                                               │
+│  ┌──────────────┐      ┌──────────────┐       │
+│  │Specifications│      │   Custom     │       │
+│  │ (Query       │      │  Exceptions  │       │
+│  │  Logic)      │      │              │       │
+│  └──────────────┘      └──────────────┘       │
+│                                               │
+│  ┌──────────────┐      ┌──────────────┐       │
+│  │    DTOs      │      │   Domain     │       │
+│  │ (Data        │      │   Events     │       │
+│  │  Transfer)   │      │              │       │
+│  └──────────────┘      └──────────────┘       │
+│                                               │
+└───────────────────────────────────────────────┘
+
+All types are PURE business logic
+NO infrastructure dependencies!
+```
+
+
+## Type 1: Entities
+
+
+### What Are Entities?
+
+
+**Entities** are **business model classes that represent things in your domain** that have:
+- **Identity**: Can be distinguished from other objects (usually by ID)
+- **Lifecycle**: Created, modified, persisted to database
+- **Behavior**: Contain business logic related to themselves
+
+
+### Key Characteristics
+
+
+```
+Entity = Data + Behavior + Identity
+
+✅ Has unique identifier (ID)
+✅ Contains domain logic
+✅ Can be persisted to database
+✅ Mutable (can change over time)
+❌ NO database annotations
+❌ NO infrastructure dependencies
+```
+
+
+### Example 1: Patient Entity
+
+
+```python
+# core/entities/patient.py
+from dataclasses import dataclass
+from datetime import datetime, date
+from typing import Optional
+
+@dataclass
+class Patient:
+    """
+    Entity: Represents a patient in the radiology system
+    Has identity (id), lifecycle (can be saved), and behavior
+    """
+    id: int
+    hospital_number: str
+    first_name: str
+    last_name: str
+    date_of_birth: date
+    gender: str
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    # Business Logic (Behavior)
+    def get_age(self) -> int:
+        """Calculate patient's age - Pure business logic"""
+        today = date.today()
+        age = today.year - self.date_of_birth.year
+        
+        # Adjust if birthday hasn't occurred this year
+        if (today.month, today.day) < (self.date_of_birth.month, 
+                                       self.date_of_birth.day):
+            age -= 1
+        return age
+    
+    def get_full_name(self) -> str:
+        """Business rule: How to display patient name"""
+        return f"{self.first_name} {self.last_name}"
+    
+    def is_pediatric(self) -> bool:
+        """Business rule: Pediatric patients are under 18"""
+        return self.get_age() < 18
+    
+    def is_eligible_for_contrast(self, creatinine: float) -> bool:
+        """Business rule: Contrast eligibility based on kidney function"""
+        # Simplified rule: creatinine < 1.5 mg/dL is safe
+        return creatinine < 1.5
+    
+    def __eq__(self, other) -> bool:
+        """Entities are equal if they have the same ID"""
+        if not isinstance(other, Patient):
+            return False
+        return self.id == other.id
+```
+
+
+### Example 2: CTScan Entity
+
+
+```python
+# core/entities/ct_scan.py
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Optional
+from enum import Enum
+
+class ScanStatus(Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+@dataclass
+class CTScan:
+    """
+    Entity: Represents a CT scan examination
+    """
+    id: int
+    patient_id: int
+    study_instance_uid: str
+    acquisition_date: datetime
+    modality: str
+    body_part: str
+    slice_thickness: float
+    kvp: int  # Kilovoltage peak
+    mas: int  # Milliampere-seconds
+    status: ScanStatus
+    
+    # Relationships (other entities)
+    patient: Optional['Patient'] = None
+    
+    # Business Logic
+    def is_brain_scan(self) -> bool:
+        """Business rule: Identify brain scans"""
+        brain_parts = ['BRAIN', 'HEAD', 'SKULL']
+        return self.body_part.upper() in brain_parts
+    
+    def is_high_resolution(self) -> bool:
+        """Business rule: High-res scans have thin slices"""
+        return self.slice_thickness <= 1.0
+    
+    def is_suitable_for_ai_analysis(self) -> bool:
+        """Business rule: Criteria for AI processing"""
+        return (
+            self.is_brain_scan() and
+            self.slice_thickness <= 5.0 and
+            self.status == ScanStatus.COMPLETED
+        )
+    
+    def calculate_radiation_dose(self) -> float:
+        """Business rule: Estimate radiation exposure"""
+        # Simplified calculation
+        dose = (self.kvp / 100) * (self.mas / 100)
+        return dose
+    
+    def mark_completed(self) -> None:
+        """Business operation: Change scan status"""
+        if self.status != ScanStatus.FAILED:
+            self.status = ScanStatus.COMPLETED
+```
+
+
+## Type 2: Aggregates
+
+
+### What Are Aggregates?
+
+
+**Aggregates** are **clusters of related entities** treated as a single unit, with:
+- **One root entity** (Aggregate Root)
+- **Consistency boundary**: Changes happen through the root
+- **Transaction boundary**: Save/load as a unit
+
+
+### Concept Diagram
+
+
+```
+Aggregate = Root Entity + Child Entities
+
+┌────────────────────────────────────────────┐
+│         Stroke Assessment Aggregate        │
+│              (Aggregate Root)              │
+│                                            │
+│  ┌───────────────────────────────┐         │
+│  │   StrokeAssessment (Root)     │         │
+│  │   • id                        │         │
+│  │   • patient_id                │         │
+│  │   • assessment_date           │         │
+│  └───────────┬───────────────────┘         │
+│              │                             │
+│              │ owns/manages                │
+│              │                             │
+│      ┌───────┴────────┬──────────┐         │
+│      ▼                ▼          ▼         │
+│  ┌────────┐     ┌──────────┐  ┌─────┐      │
+│  │ ASPECTS│     │ Clinical │  │NIHSS│      │
+│  │ Score  │     │   Data   │  │Score│      │
+│  └────────┘     └──────────┘  └─────┘      │
+│                                            │
+│  All modifications go through root!        │
+└────────────────────────────────────────────┘
+
+External code can ONLY access the root
+Cannot directly modify child entities
+```
+
+
+### Example: Stroke Assessment Aggregate
+
+
+```python
+# core/aggregates/stroke_assessment.py
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import List, Optional
+from core.entities.patient import Patient
+from core.value_objects import AspectsScore, NihssScore
+
+@dataclass
+class RegionScore:
+    """Child entity: Cannot be accessed directly from outside"""
+    region_name: str
+    is_affected: bool
+    confidence: float
+
+@dataclass
+class ClinicalData:
+    """Child entity: Part of the aggregate"""
+    symptom_onset: datetime
+    blood_pressure_systolic: int
+    blood_pressure_diastolic: int
+    glucose_level: float
+
+@dataclass
+class StrokeAssessment:
+    """
+    Aggregate Root: Controls access to all child entities
+    Maintains consistency of the entire assessment
+    """
+    # Identity
+    id: int
+    patient_id: int
+    scan_id: int
+    assessment_date: datetime
+    
+    # Child entities (managed by this root)
+    _region_scores: List[RegionScore] = field(default_factory=list)
+    _clinical_data: Optional[ClinicalData] = None
+    _aspects_score: Optional[int] = None
+    _nihss_score: Optional[int] = None
+    
+    # Relationships
+    patient: Optional[Patient] = None
+    
+    # ============================================
+    # Public API: All changes go through the root
+    # ============================================
+    
+    def add_region_score(self, region: str, affected: bool, confidence: float):
+        """Control how regions are added"""
+        # Business rule: Validate region name
+        valid_regions = ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 
+                        'Insula', 'Caudate', 'Lentiform', 'IC']
+        
+        if region not in valid_regions:
+            raise ValueError(f"Invalid region: {region}")
+        
+        # Business rule: Confidence must be 0-1
+        if not 0 <= confidence <= 1:
+            raise ValueError("Confidence must be between 0 and 1")
+        
+        self._region_scores.append(
+            RegionScore(region, affected, confidence)
+        )
+        
+        # Automatically recalculate ASPECTS when regions change
+        self._recalculate_aspects()
+    
+    def set_clinical_data(self, 
+                         symptom_onset: datetime,
+                         bp_systolic: int,
+                         bp_diastolic: int,
+                         glucose: float):
+        """Control how clinical data is set"""
+        # Business rule: Validate blood pressure
+        if not (80 <= bp_systolic <= 250):
+            raise ValueError("Invalid systolic BP")
+        if not (40 <= bp_diastolic <= 150):
+            raise ValueError("Invalid diastolic BP")
+        
+        self._clinical_data = ClinicalData(
+            symptom_onset, bp_systolic, bp_diastolic, glucose
+        )
+    
+    def get_aspects_score(self) -> int:
+        """Public read access to score"""
+        return self._aspects_score or 0
+    
+    def get_region_scores(self) -> List[RegionScore]:
+        """Return copy to prevent external modification"""
+        return self._region_scores.copy()
+    
+    # ============================================
+    # Business Rules (Private methods)
+    # ============================================
+    
+    def _recalculate_aspects(self):
+        """Business logic: Calculate ASPECTS score from regions"""
+        score = 10  # Start with 10
+        for region in self._region_scores:
+            if region.is_affected and region.confidence > 0.7:
+                score -= 1
+        self._aspects_score = max(0, score)
+    
+    def is_thrombolysis_candidate(self) -> bool:
+        """Complex business rule involving multiple entities"""
+        if not self._clinical_data or not self._aspects_score:
+            return False
+        
+        # Multiple criteria
+        aspects_ok = self._aspects_score >= 6
+        time_window_ok = self._within_time_window()
+        bp_ok = self._blood_pressure_acceptable()
+        glucose_ok = 50 <= self._clinical_data.glucose_level <= 400
+        
+        return aspects_ok and time_window_ok and bp_ok and glucose_ok
+    
+    def _within_time_window(self) -> bool:
+        """Business rule: Time from symptom onset"""
+        if not self._clinical_data:
+            return False
+        
+        time_diff = self.assessment_date - self._clinical_data.symptom_onset
+        hours = time_diff.total_seconds() / 3600
+        return hours <= 4.5  # Standard thrombolysis window
+    
+    def _blood_pressure_acceptable(self) -> bool:
+        """Business rule: BP criteria for thrombolysis"""
+        if not self._clinical_data:
+            return False
+        
+        return (self._clinical_data.blood_pressure_systolic < 185 and
+                self._clinical_data.blood_pressure_diastolic < 110)
+```
+
+
+**Why Use Aggregates?**
+
+```
+Without Aggregate:                With Aggregate:
+
+❌ Anyone can modify regions      ✅ Only root can modify
+❌ Score becomes inconsistent     ✅ Score auto-updates
+❌ Validation scattered           ✅ Validation centralized
+❌ Hard to maintain rules         ✅ Business rules in one place
+
+External Code:                    External Code:
+region.is_affected = True  ❌     assessment.add_region_score()  ✅
+(bypasses validation)             (goes through validation)
+```
+
+
+## Type 3: Interfaces
+
+
+### What Are Interfaces?
+
+
+**Interfaces** define **contracts** for operations that the Application Core needs but will be **implemented by Infrastructure**.
+
+
+### Purpose
+
+
+```
+Application Core:
+"I need to save scans, but I don't care HOW"
+        │
+        │ defines interface
+        ▼
+    interface IScanRepository {
+        save_scan()
+        get_scan()
+    }
+        ▲
+        │ implements
+        │
+Infrastructure:
+"I'll implement it using SQL/PACS/Files"
+```
+
+
+### Example: Repository Interfaces
+
+
+```python
+# core/interfaces/iscan_repository.py
+from abc import ABC, abstractmethod
+from typing import List, Optional
+from core.entities.ct_scan import CTScan
+
+class IScanRepository(ABC):
+    """
+    Interface: Contract for scan storage
+    Core defines WHAT it needs
+    Infrastructure decides HOW to implement
+    """
+    
+    @abstractmethod
+    async def get_by_id(self, scan_id: int) -> Optional[CTScan]:
+        """Retrieve scan by ID"""
+        pass
+    
+    @abstractmethod
+    async def get_by_patient(self, patient_id: int) -> List[CTScan]:
+        """Get all scans for a patient"""
+        pass
+    
+    @abstractmethod
+    async def get_pending_for_ai(self) -> List[CTScan]:
+        """Get scans waiting for AI analysis"""
+        pass
+    
+    @abstractmethod
+    async def add(self, scan: CTScan) -> CTScan:
+        """Save new scan"""
+        pass
+    
+    @abstractmethod
+    async def update(self, scan: CTScan) -> None:
+        """Update existing scan"""
+        pass
+    
+    @abstractmethod
+    async def delete(self, scan_id: int) -> None:
+        """Remove scan"""
+        pass
+```
+
+
+```python
+# core/interfaces/imodel_service.py
+from abc import ABC, abstractmethod
+import numpy as np
+from typing import Dict
+
+class IModelService(ABC):
+    """
+    Interface: Contract for AI model operations
+    """
+    
+    @abstractmethod
+    async def predict_stroke(self, image_data: np.ndarray) -> Dict[str, float]:
+        """
+        Run stroke detection model
+        Returns: Dict with region names and probabilities
+        """
+        pass
+    
+    @abstractmethod
+    async def load_model(self, model_path: str) -> None:
+        """Load AI model from path"""
+        pass
+    
+    @abstractmethod
+    def is_model_loaded(self) -> bool:
+        """Check if model is ready"""
+        pass
+```
+
+
+```python
+# core/interfaces/inotification_service.py
+from abc import ABC, abstractmethod
+from typing import List
+
+class INotificationService(ABC):
+    """
+    Interface: Contract for sending notifications
+    Could be email, SMS, Slack, etc.
+    """
+    
+    @abstractmethod
+    async def notify_critical_finding(
+        self,
+        recipients: List[str],
+        patient_id: int,
+        finding: str
+    ) -> None:
+        """Send urgent notification about critical finding"""
+        pass
+    
+    @abstractmethod
+    async def notify_report_ready(
+        self,
+        recipient: str,
+        report_id: int
+    ) -> None:
+        """Notify that a report is ready"""
+        pass
+```
+
+
+## Type 4: Domain Services
+
+
+### What Are Domain Services?
+
+
+**Domain Services** contain **business logic that doesn't naturally fit in a single entity**. They:
+- Operate on multiple entities
+- Contain complex calculations
+- Implement business processes
+- Are stateless
+
+
+### When to Use Domain Services
+
+
+```
+Use Entity Method When:          Use Domain Service When:
+• Logic involves ONE entity      • Logic spans MULTIPLE entities
+• Simple calculation             • Complex algorithm
+• Data about the entity          • Coordination/orchestration
+
+Entity:                          Domain Service:
+patient.get_age() ✅             StrokeEligibilityChecker
+                                 .check(patient, scan, clinical) ✅
+```
+
+
+### Example 1: ASPECTS Calculator Service
+
+
+```python
+# core/services/aspects_calculator.py
+from typing import Dict, List
+import numpy as np
+from core.entities.ct_scan import CTScan
+from core.value_objects import RegionAnalysis
+
+class AspectsCalculator:
+    """
+    Domain Service: Calculate ASPECTS score
+    
+    Business logic that involves complex calculation
+    on CT scan data - doesn't naturally belong to CTScan entity
+    """
+    
+    # Business rule: ASPECTS regions
+    ASPECTS_REGIONS = [
+        'M1', 'M2', 'M3', 'M4', 'M5', 'M6',
+        'Insula', 'Caudate', 'Lentiform', 'Internal_Capsule'
+    ]
+    
+    def calculate_score(
+        self, 
+        region_analyses: Dict[str, RegionAnalysis]
+    ) -> int:
+        """
+        Calculate ASPECTS score (0-10)
+        
+        Business Rule: Start at 10, subtract 1 for each affected region
+        """
+        score = 10
+        
+        for region_name in self.ASPECTS_REGIONS:
+            if region_name in region_analyses:
+                analysis = region_analyses[region_name]
+                
+                # Business rule: Region is affected if probability > 70%
+                if analysis.infarct_probability > 0.7:
+                    score -= 1
+        
+        return max(0, min(10, score))  # Clamp between 0-10
+    
+    def categorize_score(self, score: int) -> str:
+        """Business rule: Score interpretation"""
+        if score >= 8:
+            return "Minimal early ischemic changes"
+        elif score >= 6:
+            return "Moderate early ischemic changes"
+        elif score >= 4:
+            return "Extensive early ischemic changes"
+        else:
+            return "Severe early ischemic changes"
+    
+    def calculate_infarct_volume(
+        self,
+        region_analyses: Dict[str, RegionAnalysis]
+    ) -> float:
+        """
+        Estimate infarct volume in ml
+        Business rule: Each ASPECTS region ≈ 10ml
+        """
+        affected_regions = sum(
+            1 for analysis in region_analyses.values()
+            if analysis.infarct_probability > 0.7
+        )
+        return affected_regions * 10.0  # ml per region
+```
+
+
+### Example 2: Thrombolysis Eligibility Service
+
+
+```python
+# core/services/thrombolysis_checker.py
+from datetime import datetime, timedelta
+from typing import Tuple
+from core.entities.patient import Patient
+from core.entities.ct_scan import CTScan
+from core.aggregates.stroke_assessment import StrokeAssessment
+
+class ThrombolysisEligibilityChecker:
+    """
+    Domain Service: Determine thrombolysis eligibility
+    
+    Complex business logic involving multiple entities:
+    - Patient demographics
+    - CT scan findings
+    - Clinical data
+    - Timing constraints
+    """
+    
+    def check_eligibility(
+        self,
+        patient: Patient,
+        scan: CTScan,
+        assessment: StrokeAssessment
+    ) -> Tuple[bool, List[str]]:
+        """
+        Check if patient is eligible for thrombolysis
+        
+        Returns:
+            (is_eligible, list_of_reasons)
+        """
+        reasons = []
+        
+        # Check all criteria
+        age_ok = self._check_age(patient, reasons)
+        time_ok = self._check_time_window(assessment, reasons)
+        aspects_ok = self._check_aspects_score(assessment, reasons)
+        bp_ok = self._check_blood_pressure(assessment, reasons)
+        contraindications_ok = self._check_contraindications(
+            patient, assessment, reasons
+        )
+        
+        is_eligible = all([
+            age_ok, time_ok, aspects_ok, bp_ok, contraindications_ok
+        ])
+        
+        return is_eligible, reasons
+    
+    def _check_age(self, patient: Patient, reasons: List[str]) -> bool:
+        """Business rule: Age 18-80"""
+        age = patient.get_age()
+        if age < 18:
+            reasons.append("Patient too young (< 18)")
+            return False
+        if age > 80:
+            reasons.append("Patient too old (> 80)")
+            return False
+        return True
+    
+    def _check_time_window(
+        self,
+        assessment: StrokeAssessment,
+        reasons: List[str]
+    ) -> bool:
+        """Business rule: Within 4.5 hours of symptom onset"""
+        clinical = assessment._clinical_data
+        if not clinical:
+            reasons.append("No clinical data available")
+            return False
+        
+        time_diff = assessment.assessment_date - clinical.symptom_onset
+        hours = time_diff.total_seconds() / 3600
+        
+        if hours > 4.5:
+            reasons.append(f"Too late: {hours:.1f} hours since onset")
+            return False
+        
+        return True
+    
+    def _check_aspects_score(
+        self,
+        assessment: StrokeAssessment,
+        reasons: List[str]
+    ) -> bool:
+        """Business rule: ASPECTS >= 6"""
+        score = assessment.get_aspects_score()
+        
+        if score < 6:
+            reasons.append(
+                f"ASPECTS score too low: {score} (need >= 6)"
+            )
+            return False
+        
+        return True
+    
+    def _check_blood_pressure(
+        self,
+        assessment: StrokeAssessment,
+        reasons: List[str]
+    ) -> bool:
+        """Business rule: BP < 185/110"""
+        clinical = assessment._clinical_data
+        if not clinical:
+            return False
+        
+        if clinical.blood_pressure_systolic >= 185:
+            reasons.append("Systolic BP too high (>= 185)")
+            return False
+        
+        if clinical.blood_pressure_diastolic >= 110:
+            reasons.append("Diastolic BP too high (>= 110)")
+            return False
+        
+        return True
+    
+    def _check_contraindications(
+        self,
+        patient: Patient,
+        assessment: StrokeAssessment,
+        reasons: List[str]
+    ) -> bool:
+        """Business rule: Check for contraindications"""
+        clinical = assessment._clinical_data
+        if not clinical:
+            return False
+        
+        # Glucose out of range
+        if clinical.glucose_level < 50:
+            reasons.append("Hypoglycemia (glucose < 50)")
+            return False
+        if clinical.glucose_level > 400:
+            reasons.append("Hyperglycemia (glucose > 400)")
+            return False
+        
+        return True
+```
+
+
+## Type 5: Specifications
+
+
+### What Are Specifications?
+
+
+**Specifications** encapsulate **query logic** as reusable objects. They define criteria for selecting entities.
+
+
+### Purpose
+
+
+```
+Without Specification:              With Specification:
+
+Repository method:                  Repository method:
+get_brain_scans_ready_for_ai()     get_by_spec(spec)
+get_pending_stroke_scans()    
+get_high_priority_scans()           Specifications:
+... (20 more methods!)              BrainScanSpec()
+                                    PendingStrokeSpec()
+❌ Repository explodes              HighPrioritySpec()
+❌ Hard to combine criteria   
+                                    ✅ Reusable
+                                    ✅ Composable
+                                    ✅ Testable
+```
+
+
+### Example: Scan Specifications
+
+
+```python
+# core/specifications/scan_specifications.py
+from abc import ABC, abstractmethod
+from typing import List
+from core.entities.ct_scan import CTScan, ScanStatus
+
+class Specification(ABC):
+    """Base specification interface"""
+    
+    @abstractmethod
+    def is_satisfied_by(self, entity: CTScan) -> bool:
+        """Check if entity meets criteria"""
+        pass
+    
+    def and_(self, other: 'Specification') -> 'AndSpecification':
+        """Combine with AND logic"""
+        return AndSpecification(self, other)
+    
+    def or_(self, other: 'Specification') -> 'OrSpecification':
+        """Combine with OR logic"""
+        return OrSpecification(self, other)
+
+
+class BrainScanSpecification(Specification):
+    """Specification: Scan must be a brain CT"""
+    
+    def is_satisfied_by(self, scan: CTScan) -> bool:
+        return scan.is_brain_scan()
+
+
+class CompletedScanSpecification(Specification):
+    """Specification: Scan must be completed"""
+    
+    def is_satisfied_by(self, scan: CTScan) -> bool:
+        return scan.status == ScanStatus.COMPLETED
+
+
+class HighResolutionSpecification(Specification):
+    """Specification: Scan must be high resolution"""
+    
+    def is_satisfied_by(self, scan: CTScan) -> bool:
+        return scan.is_high_resolution()
+
+
+class SuitableForAISpecification(Specification):
+    """Specification: Scan meets AI processing criteria"""
+    
+    def is_satisfied_by(self, scan: CTScan) -> bool:
+        return scan.is_suitable_for_ai_analysis()
+
+
+class RecentScanSpecification(Specification):
+    """Specification: Scan acquired within last N hours"""
+    
+    def __init__(self, hours: int):
+        self.hours = hours
+    
+    def is_satisfied_by(self, scan: CTScan) -> bool:
+        from datetime import datetime, timedelta
+        cutoff = datetime.now() - timedelta(hours=self.hours)
+        return scan.acquisition_date >= cutoff
+
+
+# Composite Specifications (Combine multiple)
+
+class AndSpecification(Specification):
+    """Combine specifications with AND"""
+    
+    def __init__(self, left: Specification, right: Specification):
+        self.left = left
+        self.right = right
+    
+    def is_satisfied_by(self, entity: CTScan) -> bool:
+        return (self.left.is_satisfied_by(entity) and
+                self.right.is_satisfied_by(entity))
+
+
+class OrSpecification(Specification):
+    """Combine specifications with OR"""
+    
+    def __init__(self, left: Specification, right: Specification):
+        self.left = left
+        self.right = right
+    
+    def is_satisfied_by(self, entity: CTScan) -> bool:
+        return (self.left.is_satisfied_by(entity) or
+                self.right.is_satisfied_by(entity))
+```
+
+
+### Usage Example
+
+
+```python
+# Usage in Domain Service or Application Service
+from core.specifications.scan_specifications import (
+    BrainScanSpecification,
+    CompletedScanSpecification,
+    RecentScanSpecification
+)
+
+class ScanFilterService:
+    def get_scans_for_stroke_ai(self, all_scans: List[CTScan]) -> List[CTScan]:
+        """
+        Find scans suitable for stroke AI analysis
+        Using composed specifications!
+        """
+        # Build complex specification by combining simple ones
+        spec = (
+            BrainScanSpecification()
+            .and_(CompletedScanSpecification())
+            .and_(RecentScanSpecification(hours=24))
+        )
+        
+        # Filter scans using specification
+        return [scan for scan in all_scans if spec.is_satisfied_by(scan)]
+    
+    def get_urgent_review_scans(self, all_scans: List[CTScan]) -> List[CTScan]:
+        """Different combination for urgent reviews"""
+        spec = (
+            BrainScanSpecification()
+            .and_(RecentScanSpecification(hours=1))
+        )
+        
+        return [scan for scan in all_scans if spec.is_satisfied_by(scan)]
+```
+
+
+**Benefits:**
+
+```
+✅ Reusable: Use same specs in different contexts
+✅ Testable: Test each spec in isolation
+✅ Composable: Combine with AND/OR
+✅ Readable: Brain spec AND Completed spec
+✅ Single Responsibility: Each spec does one thing
+```
+
+
+## Type 6: Custom Exceptions and Guard Clauses
+
+
+### Custom Exceptions
+
+
+**Domain-specific exceptions** that represent business rule violations.
+
+
+```python
+# core/exceptions/domain_exceptions.py
+
+class DomainException(Exception):
+    """Base exception for all domain errors"""
+    pass
+
+class InvalidAspectsScoreException(DomainException):
+    """Raised when ASPECTS score is invalid"""
+    def __init__(self, score: int):
+        self.score = score
+        super().__init__(f"Invalid ASPECTS score: {score}. Must be 0-10")
+
+class PatientTooYoungException(DomainException):
+    """Raised when patient doesn't meet age requirement"""
+    def __init__(self, age: int, minimum: int):
+        super().__init__(
+            f"Patient age {age} is below minimum {minimum}"
+        )
+
+class StrokeTimeWindowExpiredException(DomainException):
+    """Raised when treatment window has passed"""
+    def __init__(self, hours_elapsed: float):
+        super().__init__(
+            f"Stroke occurred {hours_elapsed:.1f} hours ago. "
+            f"Treatment window (4.5 hours) has expired"
+        )
+
+class ScanNotSuitableForAIException(DomainException):
+    """Raised when scan doesn't meet AI processing criteria"""
+    def __init__(self, reason: str):
+        super().__init__(f"Scan not suitable for AI: {reason}")
+
+class BloodPressureTooHighException(DomainException):
+    """Raised when BP exceeds thrombolysis threshold"""
+    def __init__(self, systolic: int, diastolic: int):
+        super().__init__(
+            f"BP {systolic}/{diastolic} exceeds threshold for thrombolysis"
+        )
+```
+
+
+### Guard Clauses
+
+
+**Guard clauses** enforce business rules and prevent invalid states.
+
+
+```python
+# core/guards/guard.py
+from typing import Any, Optional
+from core.exceptions.domain_exceptions import DomainException
+
+class Guard:
+    """
+    Helper class for enforcing business rules
+    (Guard Clauses pattern)
+    """
+    
+    @staticmethod
+    def against_null(value: Any, parameter_name: str):
+        """Ensure value is not None"""
+        if value is None:
+            raise DomainException(f"{parameter_name} cannot be null")
+    
+    @staticmethod
+    def against_empty_string(value: str, parameter_name: str):
+        """Ensure string is not empty"""
+        if not value or value.strip() == "":
+            raise DomainException(f"{parameter_name} cannot be empty")
+    
+    @staticmethod
+    def against_out_of_range(
+        value: float,
+        min_value: float,
+        max_value: float,
+        parameter_name: str
+    ):
+        """Ensure value is within range"""
+        if value < min_value or value > max_value:
+            raise DomainException(
+                f"{parameter_name} must be between {min_value} and {max_value}"
+            )
+    
+    @staticmethod
+    def against_invalid_aspects(score: int):
+        """Ensure ASPECTS score is valid"""
+        if score < 0 or score > 10:
+            from core.exceptions.domain_exceptions import (
+                InvalidAspectsScoreException
+            )
+            raise InvalidAspectsScoreException(score)
+```
+
+
+### Usage in Entities
+
+
+```python
+# core/entities/stroke_result.py
+from dataclasses import dataclass
+from datetime import datetime
+from core.guards.guard import Guard
+from core.exceptions.domain_exceptions import InvalidAspectsScoreException
+
+@dataclass
+class StrokeResult:
+    """Entity with guard clauses"""
+    id: int
+    assessment_id: int
+    aspects_score: int
+    detected_at: datetime
+    
+    def __post_init__(self):
+        """Validate on creation"""
+        self._validate()
+    
+    def _validate(self):
+        """Business rule validation"""
+        Guard.against_null(self.assessment_id, "assessment_id")
+        Guard.against_invalid_aspects(self.aspects_score)
+    
+    def update_score(self, new_score: int):
+        """Business operation with validation"""
+        # Guard clause
+        if new_score < 0 or new_score > 10:
+            raise InvalidAspectsScoreException(new_score)
+        
+        self.aspects_score = new_score
+```
+
+
+## Type 7: Domain Events and Handlers
+
+
+### What Are Domain Events?
+
+
+**Domain Events** represent **something that happened** in the domain that other parts of the system should know about.
+
+
+### Concept
+
+
+```
+Something Important Happens:
+"Stroke detected with low ASPECTS score!"
+         │
+         │ raises
+         ▼
+    Domain Event
+  (StrokeDetectedEvent)
+         │
+         │ notifies
+         ▼
+    ┌────────────┬────────────┬────────────┐
+    │            │            │            │
+    ▼            ▼            ▼            ▼
+Handler 1   Handler 2   Handler 3   Handler 4
+Send Email  Log Event  Update Stats Notify PACS
+
+Multiple handlers can react to one event!
+```
+
+
+### Example: Domain Events
+
+
+```python
+# core/events/domain_events.py
+from dataclasses import dataclass
+from datetime import datetime
+from typing import List
+
+@dataclass
+class DomainEvent:
+    """Base class for all domain events"""
+    occurred_at: datetime
+    event_id: str
+    
+    def __post_init__(self):
+        if not self.occurred_at:
+            self.occurred_at = datetime.now()
+
+
+@dataclass
+class StrokeDetectedEvent(DomainEvent):
+    """
+    Event: Stroke has been detected in a scan
+    """
+    patient_id: int
+    scan_id: int
+    aspects_score: int
+    assessment_id: int
+    severity: str  # "mild", "moderate", "severe"
+
+
+@dataclass
+class CriticalFindingEvent(DomainEvent):
+    """
+    Event: Critical finding requiring immediate attention
+    """
+    patient_id: int
+    scan_id: int
+    finding_type: str
+    severity: str
+    requires_immediate_action: bool
+
+
+@dataclass
+class ThrombolysisEligibilityDeterminedEvent(DomainEvent):
+    """
+    Event: Thrombolysis eligibility has been determined
+    """
+    patient_id: int
+    assessment_id: int
+    is_eligible: bool
+    reasons: List[str]
+
+
+@dataclass
+class AssessmentCompletedEvent(DomainEvent):
+    """
+    Event: Stroke assessment has been completed
+    """
+    assessment_id: int
+    patient_id: int
+    scan_id: int
+    aspects_score: int
+    completion_time: datetime
+```
+
+
+### Example: Event Handlers
+
+
+```python
+# core/events/handlers.py
+from abc import ABC, abstractmethod
+from core.events.domain_events import DomainEvent, StrokeDetectedEvent
+
+class EventHandler(ABC):
+    """Base interface for event handlers"""
+    
+    @abstractmethod
+    async def handle(self, event: DomainEvent) -> None:
+        """Handle the domain event"""
+        pass
+
+
+class NotifyStrokeTeamHandler(EventHandler):
+    """Handler: Send notification when stroke detected"""
+    
+    def __init__(self, notification_service):
+        self.notification_service = notification_service
+    
+    async def handle(self, event: StrokeDetectedEvent) -> None:
+        """Send urgent notification for low ASPECTS"""
+        if event.aspects_score <= 5:
+            await self.notification_service.notify_critical_finding(
+                recipients=["stroke-team@hospital.com"],
+                patient_id=event.patient_id,
+                finding=f"Critical stroke detected: ASPECTS {event.aspects_score}"
+            )
+
+
+class LogStrokeDetectionHandler(EventHandler):
+    """Handler: Log stroke detection for audit trail"""
+    
+    def __init__(self, logger):
+        self.logger = logger
+    
+    async def handle(self, event: StrokeDetectedEvent) -> None:
+        """Log the detection"""
+        self.logger.info(
+            f"Stroke detected - Patient: {event.patient_id}, "
+            f"ASPECTS: {event.aspects_score}, "
+            f"Severity: {event.severity}"
+        )
+
+
+class UpdateStatisticsHandler(EventHandler):
+    """Handler: Update real-time statistics"""
+    
+    def __init__(self, stats_service):
+        self.stats_service = stats_service
+    
+    async def handle(self, event: StrokeDetectedEvent) -> None:
+        """Update detection statistics"""
+        await self.stats_service.increment_stroke_count()
+        await self.stats_service.record_aspects_score(event.aspects_score)
+```
+
+
+### Event Dispatcher
+
+
+```python
+# core/events/event_dispatcher.py
+from typing import Dict, List, Type
+from core.events.domain_events import DomainEvent
+from core.events.handlers import EventHandler
+
+class EventDispatcher:
+    """
+    Coordinates between events and their handlers
+    """
+    
+    def __init__(self):
+        self._handlers: Dict[Type[DomainEvent], List[EventHandler]] = {}
+    
+    def register(
+        self,
+        event_type: Type[DomainEvent],
+        handler: EventHandler
+    ):
+        """Register a handler for an event type"""
+        if event_type not in self._handlers:
+            self._handlers[event_type] = []
+        self._handlers[event_type].append(handler)
+    
+    async def dispatch(self, event: DomainEvent):
+        """Dispatch event to all registered handlers"""
+        event_type = type(event)
+        
+        if event_type in self._handlers:
+            for handler in self._handlers[event_type]:
+                await handler.handle(event)
+```
+
+
+### Usage in Domain Service
+
+
+```python
+# core/services/stroke_detection_service.py
+from core.services.aspects_calculator import AspectsCalculator
+from core.events.domain_events import StrokeDetectedEvent
+from core.events.event_dispatcher import EventDispatcher
+
+class StrokeDetectionService:
+    """Domain service that raises events"""
+    
+    def __init__(
+        self,
+        calculator: AspectsCalculator,
+        event_dispatcher: EventDispatcher
+    ):
+        self.calculator = calculator
+        self.dispatcher = event_dispatcher
+    
+    async def detect_stroke(self, scan, region_data) -> int:
+        """Detect stroke and raise event"""
+        
+        # Calculate ASPECTS
+        aspects_score = self.calculator.calculate_score(region_data)
+        
+        # Determine severity
+        severity = self._determine_severity(aspects_score)
+        
+        # Raise domain event
+        event = StrokeDetectedEvent(
+            occurred_at=datetime.now(),
+            event_id=str(uuid.uuid4()),
+            patient_id=scan.patient_id,
+            scan_id=scan.id,
+            aspects_score=aspects_score,
+            assessment_id=None,  # Set if available
+            severity=severity
+        )
+        
+        # Dispatch to all handlers
+        await self.dispatcher.dispatch(event)
+        
+        return aspects_score
+    
+    def _determine_severity(self, score: int) -> str:
+        """Business rule: Categorize severity"""
+        if score >= 8:
+            return "mild"
+        elif score >= 6:
+            return "moderate"
+        else:
+            return "severe"
+```
+
+
+## Type 8: DTOs (Data Transfer Objects)
+
+
+### What Are DTOs?
+
+
+**DTOs** are **simple data containers** for transferring data between layers, with no business logic.
+
+
+```python
+# core/dtos/stroke_analysis_dto.py
+from dataclasses import dataclass
+from datetime import datetime
+from typing import List, Dict
+
+@dataclass
+class StrokeAnalysisRequest:
+    """DTO: Request to analyze a scan"""
+    scan_id: int
+    patient_id: int
+    urgent: bool = False
+
+
+@dataclass
+class RegionAnalysisResult:
+    """DTO: Result for one brain region"""
+    region_name: str
+    is_affected: bool
+    infarct_probability: float
+    confidence_score: float
+
+
+@dataclass
+class StrokeAnalysisResult:
+    """DTO: Complete analysis result"""
+    scan_id: int
+    patient_id: int
+    aspects_score: int
+    severity: str
+    region_results: List[RegionAnalysisResult]
+    analyzed_at: datetime
+    analysis_duration_ms: int
+    
+    def to_dict(self) -> Dict:
+        """Convert to dictionary for API response"""
+        return {
+            "scan_id": self.scan_id,
+            "patient_id": self.patient_id,
+            "aspects_score": self.aspects_score,
+            "severity": self.severity,
+            "regions": [
+                {
+                    "name": r.region_name,
+                    "affected": r.is_affected,
+                    "probability": r.infarct_probability
+                }
+                for r in self.region_results
+            ],
+            "analyzed_at": self.analyzed_at.isoformat(),
+            "duration_ms": self.analysis_duration_ms
+        }
+```
+
+
