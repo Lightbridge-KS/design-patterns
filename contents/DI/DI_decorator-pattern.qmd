@@ -1,0 +1,597 @@
+# Decorator Design Pattern
+
+The Decorator pattern lets you **wrap one implementation with another** that adds behavior, while both implement the same interface. Like a UPS that sits between the wall outlet and your computer—it looks like a power source to the computer, but adds backup power functionality.
+
+
+## The UPS Analogy
+
+
+```
+WITHOUT UPS (Direct Connection)
+═══════════════════════════════════════════════════
+
+Wall Outlet ──────→ Computer
+  (IElectricitySource)  (needs IElectricitySource)
+
+Simple, but no backup power!
+
+
+WITH UPS (Decorator Pattern)
+═══════════════════════════════════════════════════
+
+Wall Outlet ──→ UPS ──→ Computer
+  (IElectricitySource)  (IElectricitySource)  (needs IElectricitySource)
+                        │
+                        └─ Adds: Battery backup
+                           Adds: Surge protection
+                           Adds: Power monitoring
+
+The UPS:
+  • IS an IElectricitySource (implements the interface)
+  • HAS an IElectricitySource (wraps the wall outlet)
+  • Adds extra behavior (backup, protection)
+  • Computer doesn't know or care!
+```
+
+
+## Core Concept: Wrapping Layers
+
+
+```
+┌──────────────────────────────────────────────┐
+│  Original Object                             │
+│  ─────────────────────────                   │
+│  Provides: Core functionality                │
+└──────────────────────────────────────────────┘
+                    ▲
+                    │ wrapped by
+┌───────────────────┴──────────────────────────┐
+│  Decorator 1                                 │
+│  ─────────────────────────                   │
+│  Adds: Feature A                             │
+│  Implements: Same interface                  │
+│  Contains: Reference to wrapped object       │
+└──────────────────────────────────────────────┘
+                    ▲
+                    │ wrapped by
+┌───────────────────┴──────────────────────────┐
+│  Decorator 2                                 │
+│  ─────────────────────────                   │
+│  Adds: Feature B                             │
+│  Implements: Same interface                  │
+│  Contains: Reference to wrapped object       │
+└──────────────────────────────────────────────┘
+
+Client only sees: The interface!
+Can stack decorators: Layer upon layer
+```
+
+
+## C# Implementation: Repository Example
+
+
+### Step 1: Define the Interface
+
+```csharp
+// The "electricity source" interface
+public interface IRepository
+{
+    void Save(Patient patient);
+    Patient GetById(int id);
+}
+```
+
+
+### Step 2: Create the Core Implementation
+
+```csharp
+// The "computer" - core functionality
+public class SqlRepository : IRepository
+{
+    public void Save(Patient patient)
+    {
+        Console.WriteLine($"Saving patient {patient.Name} to database");
+        // Actual database code here
+    }
+
+    public Patient GetById(int id)
+    {
+        Console.WriteLine($"Getting patient with ID {id}");
+        return new Patient { Id = id, Name = "John Doe" };
+    }
+}
+```
+
+
+### Step 3: Create Decorators (The "UPS")
+
+```csharp
+// Decorator 1: Adds logging (like UPS adds monitoring)
+public class LoggingRepositoryDecorator : IRepository
+{
+    private readonly IRepository _innerRepository;
+    private readonly ILogger _logger;
+
+    public LoggingRepositoryDecorator(
+        IRepository innerRepository, 
+        ILogger logger)
+    {
+        _innerRepository = innerRepository;  // Wraps another repository
+        _logger = logger;
+    }
+
+    public void Save(Patient patient)
+    {
+        _logger.Log($"[LOG] Saving patient {patient.Name}");
+        _innerRepository.Save(patient);  // Call the wrapped implementation
+        _logger.Log($"[LOG] Patient {patient.Name} saved successfully");
+    }
+
+    public Patient GetById(int id)
+    {
+        _logger.Log($"[LOG] Retrieving patient with ID {id}");
+        var patient = _innerRepository.GetById(id);
+        _logger.Log($"[LOG] Retrieved patient: {patient.Name}");
+        return patient;
+    }
+}
+
+// Decorator 2: Adds caching (like UPS adds battery backup)
+public class CachingRepositoryDecorator : IRepository
+{
+    private readonly IRepository _innerRepository;
+    private readonly Dictionary<int, Patient> _cache = new();
+
+    public CachingRepositoryDecorator(IRepository innerRepository)
+    {
+        _innerRepository = innerRepository;
+    }
+
+    public void Save(Patient patient)
+    {
+        _innerRepository.Save(patient);
+        _cache[patient.Id] = patient;  // Cache after saving
+    }
+
+    public Patient GetById(int id)
+    {
+        if (_cache.TryGetValue(id, out var cachedPatient))
+        {
+            Console.WriteLine($"[CACHE HIT] Returning cached patient {id}");
+            return cachedPatient;
+        }
+
+        Console.WriteLine($"[CACHE MISS] Fetching from repository");
+        var patient = _innerRepository.GetById(id);
+        _cache[id] = patient;
+        return patient;
+    }
+}
+
+// Decorator 3: Adds retry logic (like UPS adds surge protection)
+public class RetryRepositoryDecorator : IRepository
+{
+    private readonly IRepository _innerRepository;
+    private readonly int _maxRetries = 3;
+
+    public RetryRepositoryDecorator(IRepository innerRepository)
+    {
+        _innerRepository = innerRepository;
+    }
+
+    public void Save(Patient patient)
+    {
+        int attempts = 0;
+        while (attempts < _maxRetries)
+        {
+            try
+            {
+                _innerRepository.Save(patient);
+                return;  // Success!
+            }
+            catch (Exception ex)
+            {
+                attempts++;
+                Console.WriteLine($"[RETRY] Attempt {attempts} failed: {ex.Message}");
+                if (attempts >= _maxRetries) throw;
+            }
+        }
+    }
+
+    public Patient GetById(int id)
+    {
+        // Similar retry logic for GetById
+        return _innerRepository.GetById(id);
+    }
+}
+```
+
+
+### Step 4: Compose the Decorators (Stack Them!)
+
+```csharp
+// Build the decorator chain
+IRepository repository;
+
+// Start with core functionality
+repository = new SqlRepository();
+
+// Wrap with caching (innermost decorator)
+repository = new CachingRepositoryDecorator(repository);
+
+// Wrap with logging (middle decorator)
+repository = new LoggingRepositoryDecorator(repository, new ConsoleLogger());
+
+// Wrap with retry (outermost decorator)
+repository = new RetryRepositoryDecorator(repository);
+
+// Use it!
+var patientService = new PatientService(repository);
+patientService.DoSomething();
+```
+
+
+## Execution Flow (Like Power Through UPS)
+
+
+```
+CALL FLOW: repository.GetById(123)
+═══════════════════════════════════════════════════════════
+
+1. Client calls
+   ↓
+┌────────────────────────────────────────────────────────┐
+│ RetryRepositoryDecorator                               │
+│ ─────────────────────────                              │
+│ • Wraps the call in try-catch                          │
+│ • Adds retry logic                                     │
+│ • Calls next layer ───────────────────────────┐        │
+└───────────────────────────────────────────────┼────────┘
+                                                ↓
+┌────────────────────────────────────────────────────────┐
+│ LoggingRepositoryDecorator                             │
+│ ─────────────────────────                              │
+│ • Logs "Retrieving patient 123"                        │
+│ • Calls next layer ───────────────────────┐            │
+│ • Logs "Retrieved patient: John"          │            │
+└───────────────────────────────────────────┼────────────┘
+                                            ↓
+┌────────────────────────────────────────────────────────┐
+│ CachingRepositoryDecorator                             │
+│ ─────────────────────────                              │
+│ • Checks cache (miss)                                  │
+│ • Calls next layer ──────────────┐                     │
+│ • Stores result in cache         │                     │
+└──────────────────────────────────┼─────────────────────┘
+                                   ↓
+┌────────────────────────────────────────────────────────┐
+│ SqlRepository (Core)                                   │
+│ ─────────────────────────                              │
+│ • Actually queries the database                        │
+│ • Returns: Patient { Id: 123, Name: "John Doe" }       │
+└────────────────────────────────────────────────────────┘
+                                   │
+                     RETURN VALUE  │
+                                   ↓
+            Flows back through each decorator
+            (Each can do post-processing)
+```
+
+
+## Medical Imaging Example: DICOM Processor
+
+
+```csharp
+// Interface
+public interface IDicomProcessor
+{
+    DicomStudy ProcessStudy(string studyId);
+}
+
+// Core implementation
+public class BasicDicomProcessor : IDicomProcessor
+{
+    public DicomStudy ProcessStudy(string studyId)
+    {
+        Console.WriteLine("Processing DICOM study");
+        // Basic DICOM processing
+        return new DicomStudy { StudyId = studyId };
+    }
+}
+
+// Decorator 1: Add anonymization
+public class AnonymizingDicomDecorator : IDicomProcessor
+{
+    private readonly IDicomProcessor _processor;
+
+    public AnonymizingDicomDecorator(IDicomProcessor processor)
+    {
+        _processor = processor;
+    }
+
+    public DicomStudy ProcessStudy(string studyId)
+    {
+        var study = _processor.ProcessStudy(studyId);
+        
+        // Add anonymization
+        Console.WriteLine("Anonymizing patient information");
+        study.PatientName = "ANONYMOUS";
+        study.PatientId = HashId(study.PatientId);
+        
+        return study;
+    }
+
+    private string HashId(string id) => $"HASH_{id.GetHashCode()}";
+}
+
+// Decorator 2: Add AI analysis
+public class AiAnalysisDicomDecorator : IDicomProcessor
+{
+    private readonly IDicomProcessor _processor;
+    private readonly IAiModel _aiModel;
+
+    public AiAnalysisDicomDecorator(
+        IDicomProcessor processor, 
+        IAiModel aiModel)
+    {
+        _processor = processor;
+        _aiModel = aiModel;
+    }
+
+    public DicomStudy ProcessStudy(string studyId)
+    {
+        var study = _processor.ProcessStudy(studyId);
+        
+        // Add AI predictions
+        Console.WriteLine("Running AI analysis on images");
+        study.AiPredictions = _aiModel.Analyze(study.Images);
+        
+        return study;
+    }
+}
+
+// Decorator 3: Add audit logging (for compliance)
+public class AuditLoggingDicomDecorator : IDicomProcessor
+{
+    private readonly IDicomProcessor _processor;
+    private readonly IAuditLogger _auditLogger;
+
+    public AuditLoggingDicomDecorator(
+        IDicomProcessor processor,
+        IAuditLogger auditLogger)
+    {
+        _processor = processor;
+        _auditLogger = auditLogger;
+    }
+
+    public DicomStudy ProcessStudy(string studyId)
+    {
+        _auditLogger.Log($"User accessed study {studyId}", 
+            DateTime.Now, 
+            GetCurrentUser());
+            
+        var study = _processor.ProcessStudy(studyId);
+        
+        _auditLogger.Log($"Study {studyId} processed successfully");
+        
+        return study;
+    }
+}
+
+// Compose them!
+IDicomProcessor processor = new BasicDicomProcessor();
+processor = new AnonymizingDicomDecorator(processor);
+processor = new AiAnalysisDicomDecorator(processor, aiModel);
+processor = new AuditLoggingDicomDecorator(processor, auditLogger);
+
+// Use it - gets ALL the features!
+var study = processor.ProcessStudy("1.2.840.113619.2.55");
+```
+
+
+## Key Benefits: Cross-Cutting Concerns
+
+
+```
+CROSS-CUTTING CONCERNS
+═══════════════════════════════════════════════════
+
+Concerns that affect multiple parts of your application:
+  • Logging
+  • Caching
+  • Security/Authorization
+  • Transaction management
+  • Error handling/Retry logic
+  • Audit trails
+  • Performance monitoring
+  • Data validation
+
+WITHOUT DECORATOR (Scattered everywhere)
+──────────────────────────────────────────────────
+public class PatientRepository
+{
+    public void Save(Patient patient)
+    {
+        Log("Saving...");           // Logging mixed in
+        CheckAuthorization();       // Security mixed in
+        StartTransaction();         // Transaction mixed in
+        try {
+            // Actual save logic
+            AuditLog("Saved");      // Audit mixed in
+        } catch {
+            Retry();                // Retry mixed in
+        }
+        CommitTransaction();
+        Log("Saved!");
+    }
+}
+Problem: Business logic mixed with infrastructure!
+
+
+WITH DECORATOR (Separated)
+──────────────────────────────────────────────────
+public class PatientRepository
+{
+    public void Save(Patient patient)
+    {
+        // ONLY business logic!
+        database.Insert(patient);
+    }
+}
+
+// Add concerns via decorators
+repository = new PatientRepository();           // Core
+repository = new LoggingDecorator(repository);  // + Logging
+repository = new CachingDecorator(repository);  // + Caching
+repository = new RetryDecorator(repository);    // + Retry
+repository = new AuditDecorator(repository);    // + Audit
+
+Clean separation! Each class has ONE responsibility.
+```
+
+
+## Incremental Features (The UPS Principle)
+
+
+```
+YEAR 1: Start simple
+═══════════════════════════════════════════════════
+IDicomProcessor processor = new BasicDicomProcessor();
+// Just basic DICOM processing
+
+
+YEAR 2: Add anonymization (bought a "UPS")
+═══════════════════════════════════════════════════
+processor = new BasicDicomProcessor();
+processor = new AnonymizingDicomDecorator(processor);
+// Didn't change BasicDicomProcessor! Just wrapped it.
+
+
+YEAR 3: Add AI (plugged into the "UPS")
+═══════════════════════════════════════════════════
+processor = new BasicDicomProcessor();
+processor = new AnonymizingDicomDecorator(processor);
+processor = new AiAnalysisDicomDecorator(processor, aiModel);
+// Still didn't change existing code!
+
+
+YEAR 4: Add audit logging (compliance requirement)
+═══════════════════════════════════════════════════
+processor = new BasicDicomProcessor();
+processor = new AnonymizingDicomDecorator(processor);
+processor = new AiAnalysisDicomDecorator(processor, aiModel);
+processor = new AuditLoggingDicomDecorator(processor, logger);
+// Added feature without touching any existing classes!
+
+
+Like the UPS analogy:
+  ✓ Computer (core) unchanged
+  ✓ Can add UPS anytime
+  ✓ Can use UPS with other devices (hair dryer)
+  ✓ Can remove UPS if not needed
+  ✓ Can stack power conditioning, UPS, surge protector
+```
+
+
+## Decorator Pattern Structure
+
+
+```
+┌─────────────────────────────────────────────────┐
+│ IComponent (interface)                          │
+│ ─────────────────────────                       │
+│ + Operation()                                   │
+└───────────────┬─────────────────────────────────┘
+                │
+      ┌─────────┴──────────┐
+      │                    │
+      ▼                    ▼
+┌──────────────┐  ┌─────────────────────────────┐
+│ Concrete     │  │ Decorator (abstract)        │
+│ Component    │  │ ─────────────────────       │
+│ ──────────── │  │ - component: IComponent     │
+│ + Operation()│  │ + Operation()               │
+└──────────────┘  └──────────┬──────────────────┘
+                             │
+                   ┌─────────┴─────────┐
+                   │                   │
+                   ▼                   ▼
+         ┌──────────────────┐ ┌──────────────────┐
+         │ ConcreteDecorator│ │ ConcreteDecorator│
+         │ A                │ │ B                │
+         │ ──────────────── │ │ ──────────────── │
+         │ + Operation()    │ │ + Operation()    │
+         │   - addBehaviorA │ │   - addBehaviorB │
+         └──────────────────┘ └──────────────────┘
+
+Key points:
+  • Decorator implements same interface as Component
+  • Decorator HAS-A Component (composition)
+  • Decorator delegates to wrapped component
+  • Can chain multiple decorators
+```
+
+
+## Registration with DI Container
+
+
+```csharp
+// In Startup.cs or Program.cs
+services.AddScoped<SqlRepository>();
+
+// Register decorators in order (inner to outer)
+services.AddScoped<IRepository>(provider =>
+{
+    var core = provider.GetRequiredService<SqlRepository>();
+    
+    // Build the decorator chain
+    IRepository repository = core;
+    repository = new CachingRepositoryDecorator(repository);
+    repository = new LoggingRepositoryDecorator(
+        repository, 
+        provider.GetRequiredService<ILogger>());
+    repository = new RetryRepositoryDecorator(repository);
+    
+    return repository;
+});
+
+// Or use Scrutor library for cleaner syntax
+services.AddScoped<IRepository, SqlRepository>();
+services.Decorate<IRepository, CachingRepositoryDecorator>();
+services.Decorate<IRepository, LoggingRepositoryDecorator>();
+services.Decorate<IRepository, RetryRepositoryDecorator>();
+```
+
+
+## Summary
+
+
+```
+┌──────────────────────────────────────────────────────┐
+│ DECORATOR PATTERN                                    │
+│ ═══════════════════════════════════════              │
+│                                                      │
+│ Like a UPS between wall and computer:                │
+│   • Implements same interface (electricity source)   │
+│   • Wraps another implementation                     │
+│   • Adds behavior without modifying core             │
+│   • Can be stacked (surge + UPS + monitoring)        │
+│   • Can be removed or replaced easily                │
+│                                                      │
+│ Benefits:                                            │
+│   ✓ Single Responsibility Principle                  │
+│   ✓ Open/Closed Principle (open for extension)       │
+│   ✓ Incremental feature addition                     │
+│   ✓ Separate cross-cutting concerns                  │
+│   ✓ No modification of existing code                 │
+│   ✓ Flexible composition at runtime                  │
+│                                                      │
+│ Perfect for:                                         │
+│   • Logging, caching, retry logic                    │
+│   • Authorization, validation                        │
+│   • Monitoring, auditing                             │
+│   • Any "before/after" behavior                      │
+└──────────────────────────────────────────────────────┘
+```
+
+The Decorator pattern is one of the most useful patterns in DI because it lets you compose behavior without tight coupling. Just like you can unplug your computer from the UPS if you don't need backup power, you can remove decorators without affecting the core functionality!
