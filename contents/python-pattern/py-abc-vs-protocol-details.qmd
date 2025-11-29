@@ -1,0 +1,357 @@
+
+::: {.callout-note appearance="default" collapse="false"}
+## Questions
+
+I've known ABC, but never heard of Protocol in Python. Please explain and compare them using the following examples:
+
+### ABC
+
+```python
+from abc import ABC, abstractmethod
+
+
+class Notifier(ABC):
+    @abstractmethod
+    def send_notification(self, message: str) -> None:
+        pass
+
+
+class EmailNotifier(Notifier):
+    def send_notification(self, message: str) -> None:
+
+        print(f"Sending email: {message}")
+
+
+class SMSNotifier(Notifier):
+    def send_notification(self, message: str) -> None:
+
+        print(f"Sending SMS: {message}")
+
+
+class NotificationService:
+    def __init__(self, notifier: Notifier):
+
+        self.notifier = notifier
+
+    def notify(self, message: str) -> None:
+        self.notifier.send_notification(message)
+
+
+# Usage
+email_notifier = EmailNotifier()
+email_service = NotificationService(email_notifier)
+email_service.notify("Hello via email")
+```
+
+
+### Protocol
+
+```python
+from typing import Protocol
+class Notifier(Protocol):
+    def send_notification(self, message: str) -> None:
+        ...
+
+class EmailNotifier:  # Note: no explicit inheritance
+    def send_notification(self, message: str) -> None:
+
+        print(f"Sending email: {message}")
+
+class SMSNotifier:  # Note: no explicit inheritance
+    def send_notification(self, message: str) -> None:
+
+        print(f"Sending SMS: {message}")
+
+class NotificationService:
+    def __init__(self, notifier: Notifier):  # Still able to use type hinting
+        self.notifier = notifier
+
+    def notify(self, message: str) -> None:
+        self.notifier.send_notification(message)
+
+# Usage
+sms_notifier = SMSNotifier()
+sms_service = NotificationService(sms_notifier)
+sms_service.notify("Hello via SMS")
+```
+
+:::
+
+
+Great question! Let me explain the key differences between ABC and Protocol, which represent two different approaches to polymorphism in Python.
+
+
+## Core Difference
+
+
+**ABC (Abstract Base Class)** → **Nominal Typing** (inheritance-based)
+**Protocol** → **Structural Typing** (duck typing with type hints)
+
+
+```
+ABC Approach:
+┌─────────────┐
+│  Notifier   │ (ABC)
+│  (abstract) │
+└──────┬──────┘
+       │
+       │ explicit inheritance
+       │
+   ┌───┴────┬─────────┐
+   │        │         │
+┌──▼───┐ ┌─▼──┐  ┌───▼────┐
+│Email │ │SMS │  │Push    │
+│      │ │    │  │        │
+└──────┘ └────┘  └────────┘
+
+Protocol Approach:
+┌─────────────┐
+│  Notifier   │ (Protocol)
+│  (interface)│
+└─────────────┘
+       
+   "If it walks like a duck..."
+       
+   ┌────────┬─────────┬──────────┐
+   │        │         │          │
+┌──▼───┐ ┌─▼──┐  ┌───▼────┐ ┌──▼──────┐
+│Email │ │SMS │  │Push    │ │Third    │
+│      │ │    │  │        │ │Party    │
+└──────┘ └────┘  └────────┘ └─────────┘
+                              (no changes
+                               needed!)
+```
+
+
+## Detailed Comparison
+
+
+### 1. Inheritance Requirement
+
+
+**ABC:**
+- **Requires explicit inheritance** - classes MUST inherit from the ABC
+- Runtime enforcement - Python checks inheritance at instantiation
+
+```python
+class EmailNotifier(Notifier):  # Must inherit
+    def send_notification(self, message: str) -> None:
+        print(f"Sending email: {message}")
+```
+
+**Protocol:**
+- **No inheritance needed** - classes are compatible if they have the right methods
+- Static type checking only - mypy/pyright check at development time
+
+```python
+class EmailNotifier:  # No inheritance!
+    def send_notification(self, message: str) -> None:
+        print(f"Sending email: {message}")
+```
+
+
+### 2. Enforcement Timing
+
+
+```
+ABC:
+Development → Runtime
+               │
+               └─→ TypeError if abstract methods not implemented
+
+Protocol:
+Development → Type Checker (mypy/pyright)
+    │
+    └─→ Type error if methods don't match
+    
+Runtime → No checking (duck typing)
+```
+
+
+### 3. Working with Third-Party Code
+
+
+**ABC - Problematic:**
+
+```python
+# Imagine this is from a third-party library you can't modify
+class ThirdPartyLogger:
+    def send_notification(self, message: str) -> None:
+        print(f"Logging: {message}")
+
+# This WON'T work - not inherited from Notifier ABC
+service = NotificationService(ThirdPartyLogger())  # Runtime error!
+
+# You'd need to create a wrapper:
+class LoggerAdapter(Notifier):
+    def __init__(self):
+        self._logger = ThirdPartyLogger()
+    
+    def send_notification(self, message: str) -> None:
+        self._logger.send_notification(message)
+```
+
+**Protocol - Just Works:**
+
+```python
+# Same third-party code
+class ThirdPartyLogger:
+    def send_notification(self, message: str) -> None:
+        print(f"Logging: {message}")
+
+# This WORKS! Type checker is happy
+service = NotificationService(ThirdPartyLogger())  # ✓
+```
+
+
+### 4. Runtime Behavior
+
+
+```python
+# ABC - Runtime checking
+class IncompleteNotifier(Notifier):  # Missing send_notification
+    pass
+
+notifier = IncompleteNotifier()  # TypeError at runtime!
+# TypeError: Can't instantiate abstract class IncompleteNotifier
+
+
+# Protocol - No runtime checking
+class IncompleteNotifier:  # Missing send_notification
+    pass
+
+notifier = IncompleteNotifier()  # No error!
+service = NotificationService(notifier)  # No error!
+service.notify("test")  # AttributeError here!
+```
+
+
+### 5. Type Checker Integration
+
+
+Both work with type checkers, but differently:
+
+```python
+# With ABC
+def process(notifier: Notifier):  # Must be Notifier subclass
+    notifier.send_notification("Hi")
+
+# With Protocol  
+def process(notifier: Notifier):  # Any object with send_notification
+    notifier.send_notification("Hi")
+```
+
+
+## When to Use Each
+
+
+### Use ABC When:
+
+
+1. **You control all implementations** - internal project code
+2. **You want runtime enforcement** - catch errors immediately
+3. **You want shared behavior** - ABCs can have concrete methods
+
+```python
+from abc import ABC, abstractmethod
+
+class DataProcessor(ABC):
+    @abstractmethod
+    def process(self, data: str) -> str:
+        pass
+    
+    # Concrete method all subclasses get
+    def validate(self, data: str) -> bool:
+        return len(data) > 0
+    
+    # Template method pattern
+    def run(self, data: str) -> str:
+        if not self.validate(data):
+            raise ValueError("Invalid data")
+        return self.process(data)
+```
+
+
+### Use Protocol When:
+
+
+1. **Working with third-party code** - can't modify to inherit
+2. **Want flexibility** - structural typing is more flexible
+3. **Library/framework design** - users don't need to inherit
+4. **Following "duck typing" philosophy** - Pythonic approach
+
+```python
+from typing import Protocol
+
+# Users can implement this without knowing about your library
+class Serializable(Protocol):
+    def to_dict(self) -> dict:
+        ...
+
+# Works with ANY object that has to_dict method
+def save(obj: Serializable):
+    data = obj.to_dict()
+    # save logic...
+```
+
+
+## Practical Example: Real-World Scenario
+
+
+**Scenario:** You're building a notification system that needs to work with:
+- Your own notification classes
+- Third-party services (Twilio, SendGrid)
+- Future integrations (unknown providers)
+
+```python
+# Protocol approach (recommended)
+from typing import Protocol
+
+class Notifier(Protocol):
+    def send_notification(self, message: str) -> None:
+        ...
+
+# Your code
+class EmailNotifier:
+    def send_notification(self, message: str) -> None:
+        print(f"Email: {message}")
+
+# Third-party (can't modify)
+import twilio
+class TwilioClient:  # From external library
+    def send_notification(self, message: str) -> None:
+        # Twilio's implementation
+        pass
+
+# Both work seamlessly!
+def broadcast(notifiers: list[Notifier], message: str):
+    for notifier in notifiers:
+        notifier.send_notification(message)
+
+broadcast([EmailNotifier(), TwilioClient()], "Hello!")
+```
+
+
+## Summary Table
+
+
+| Feature | ABC | Protocol |
+|---------|-----|----------|
+| Inheritance Required | ✓ Yes | ✗ No |
+| Runtime Checking | ✓ Yes | ✗ No |
+| Third-party Integration | ✗ Hard | ✓ Easy |
+| Shared Behavior | ✓ Yes | ✗ No |
+| Philosophy | Nominal Typing | Structural Typing |
+| Python Style | Traditional OOP | Duck Typing |
+
+
+## My Recommendation
+
+
+For your radiology AI work where you might integrate with various medical imaging libraries and APIs, **Protocol is often better** because:
+
+1. Medical imaging libraries (SimpleITK, pydicom, etc.) won't inherit from your classes
+2. You want flexibility to work with different vendor APIs
+3. Python community is moving toward Protocols for interfaces
+
+Use ABC when building core internal hierarchies where you control everything and want runtime safety.

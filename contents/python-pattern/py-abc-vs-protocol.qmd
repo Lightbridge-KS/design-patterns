@@ -1,0 +1,153 @@
+# Python Protocol vs ABC
+
+The core insight: **Protocol checks "can it do X?"** while **ABC checks "is it a Y?"**
+
+## What is Protocol?
+
+`Protocol` (from `typing` module) defines **structural subtyping** (also called "duck typing" but static). It specifies what methods/attributes a class should have, **without requiring explicit inheritance**.
+
+```python
+from typing import Protocol
+
+class Drawable(Protocol):
+    def draw(self) -> None: ...
+```
+
+Any class with a `draw()` method automatically satisfies this protocol—no inheritance needed.
+
+
+## What is ABC?
+
+`ABC` (Abstract Base Class) from `abc` module defines **nominal subtyping**. Classes must **explicitly inherit** from the ABC to be considered a subtype.
+
+```python
+from abc import ABC, abstractmethod
+
+class Shape(ABC):
+    @abstractmethod
+    def area(self) -> float: ...
+```
+
+Classes must inherit from `Shape` and implement `area()` to be valid.
+
+
+## Key Differences
+
+
+### 1. Inheritance Requirement
+
+```
+Protocol (Structural)          ABC (Nominal)
+     
+Class A ──┐                   Class A ──┐
+          │                             │ inherits
+Class B ──┤ all have                    ↓
+          │ method X()            ABC Shape
+Class C ──┘                             ↑
+                                        │ inherits
+     ↓                                  │
+All satisfy                       Class B
+Protocol X
+(no inheritance!)              (must inherit!)
+```
+
+**Protocol**: If it walks like a duck and quacks like a duck, it's a duck
+**ABC**: You must be born a duck (inherit from Duck)
+
+
+### 2. Code Example
+
+```python
+from typing import Protocol
+from abc import ABC, abstractmethod
+
+# Protocol approach
+class Flyable(Protocol):
+    def fly(self) -> str: ...
+
+# ABC approach  
+class Animal(ABC):
+    @abstractmethod
+    def speak(self) -> str: ...
+
+
+# Using Protocol - no inheritance needed
+class Bird:
+    def fly(self) -> str:
+        return "Flying"
+
+class Plane:
+    def fly(self) -> str:
+        return "Soaring"
+
+def make_it_fly(obj: Flyable) -> None:  # Both Bird and Plane work!
+    print(obj.fly())
+
+
+# Using ABC - inheritance required
+class Dog(Animal):  # Must inherit
+    def speak(self) -> str:
+        return "Woof"
+
+# This won't work as Animal subtype:
+class Robot:
+    def speak(self) -> str:
+        return "Beep"
+# Robot has speak(), but NOT an Animal (no inheritance)
+```
+
+
+### 3. When to Use Each
+
+**Use Protocol when:**
+- Working with third-party code you can't modify
+- Want flexibility (anything matching the interface works)
+- Doing type checking without changing existing code
+- Building libraries that don't force inheritance on users
+
+**Use ABC when:**
+- You control the class hierarchy
+- Need to enforce implementation with `@abstractmethod`
+- Want shared implementation (concrete methods in base)
+- Building framework where inheritance makes semantic sense
+
+
+## Runtime Behavior
+
+```python
+from typing import Protocol, runtime_checkable
+
+@runtime_checkable  # Must add this for isinstance()
+class Renderable(Protocol):
+    def render(self) -> str: ...
+
+class Button:
+    def render(self) -> str:
+        return "<button/>"
+
+# Works with @runtime_checkable
+print(isinstance(Button(), Renderable))  # True
+
+# ABC always works with isinstance()
+from abc import ABC
+class Base(ABC): pass
+class Derived(Base): pass
+print(isinstance(Derived(), Base))  # True
+```
+
+**Protocol**: Need `@runtime_checkable` decorator for `isinstance()` checks
+**ABC**: `isinstance()` works automatically
+
+
+## Summary Table
+
+| Aspect | Protocol | ABC |
+|--------|----------|-----|
+| Subtyping | Structural (duck typing) | Nominal (inheritance) |
+| Inheritance | Not required | Required |
+| Flexibility | High (any matching class) | Low (must inherit) |
+| Runtime check | Need `@runtime_checkable` | Built-in |
+| Shared code | No | Yes (concrete methods) |
+| Use case | Type hints, flexibility | Frameworks, hierarchies |
+
+
