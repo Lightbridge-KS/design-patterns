@@ -44,7 +44,7 @@ classDiagram
     }
 
     class Project {
-        <<Entity>>
+        <<Aggregates>>
         +str name
         +str description
         -dict~UUID,Task~ _tasks
@@ -160,6 +160,11 @@ class Task(Entity):
     def is_overdue(self) -> bool:
         return self.due_date is not None and self.due_date.is_overdue()
 ```
+
+## Aggregates
+
+Aggregates are a crucial pattern in DDD for maintaining consistency and defining transactional boundaries within the domain. An aggregate is **a cluster of domain objects** that we treat as a single unit for data changes. Each aggregate has a root and a boundary. The root is a single, specific entity contained in the aggregate, and the boundary defines what is inside the aggregate.
+
 
 ### `project.py`
 
