@@ -36,6 +36,7 @@ book:
         - "contents/pattern/db-isomorphic-mapping.qmd"
     - part: Python Design Pattern
       chapters: 
+        - "contents/python-pattern/py-SOLID.qmd"
         - "contents/python-pattern/py-abc-vs-protocol.qmd"
         - "contents/python-pattern/py-abc-vs-protocol-details.qmd"
     - part: App Architecture
