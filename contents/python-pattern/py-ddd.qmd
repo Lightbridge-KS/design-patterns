@@ -1,4 +1,4 @@
-# DDD with Python
+# DDD (Core)
 
 **Example code:** [Clean Architecture `TodoApp`](https://github.com/PacktPublishing/Clean-Architecture-with-Python/tree/main/Chapter_4)
 
