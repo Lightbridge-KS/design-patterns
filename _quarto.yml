@@ -39,6 +39,7 @@ book:
         - "contents/python-pattern/py-SOLID.qmd"
         - "contents/python-pattern/py-abc-vs-protocol.qmd"
         - "contents/python-pattern/py-abc-vs-protocol-details.qmd"
+        - "contents/python-pattern/py-ddd.qmd"
     - part: App Architecture
       chapters: 
         - "contents/app-architect/app-arch-layered.qmd"

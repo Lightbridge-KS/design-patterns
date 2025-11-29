@@ -1,0 +1,293 @@
+# DDD with Python
+
+**Example code:** [Clean Architecture `TodoApp`](https://github.com/PacktPublishing/Clean-Architecture-with-Python/tree/main/Chapter_4)
+
+## Overview
+
+**Repository Structure:**
+
+```zsh
+(base) ➜  todo_app git:(main) tree -L 3
+.
+└── domain
+    ├── entities
+    │   ├── entity.py
+    │   ├── project.py
+    │   └── task.py
+    ├── services
+    │   └── task_priority_calculator.py
+    └── value_objects.py
+```
+
+**Domain Model Relationships:**
+
+```{mermaid}
+classDiagram
+    %% Entities
+    class Entity {
+        <<Entity>>
+        +UUID id
+        +__eq__(other) bool
+        +__hash__() int
+    }
+
+    class Task {
+        <<Entity>>
+        +str title
+        +str description
+        +Deadline? due_date
+        +Priority priority
+        +TaskStatus status
+        +start() None
+        +complete() None
+        +is_overdue() bool
+    }
+
+    class Project {
+        <<Entity>>
+        +str name
+        +str description
+        -dict~UUID,Task~ _tasks
+        +add_task(task) None
+        +remove_task(task_id) None
+        +get_task(task_id) Task?
+        +tasks list~Task~
+    }
+
+    %% Value Objects
+    class TaskStatus {
+        <<Value Object>>
+        TODO
+        IN_PROGRESS
+        DONE
+    }
+
+    class Priority {
+        <<Value Object>>
+        LOW
+        MEDIUM
+        HIGH
+    }
+
+    class Deadline {
+        <<Value Object>>
+        +datetime due_date
+        +is_overdue() bool
+        +time_remaining() timedelta
+        +is_approaching() bool
+    }
+
+    %% Domain Services
+    class TaskPriorityCalculator {
+        <<Domain Service>>
+        +calculate_priority(task)$ Priority
+    }
+
+    %% Relationships
+    Task --|> Entity : inherits
+    Project --|> Entity : inherits
+    Task o-- Deadline : has optional
+    Task --> Priority : uses
+    Task --> TaskStatus : uses
+    Project *-- Task : contains many
+    TaskPriorityCalculator ..> Task : operates on
+    TaskPriorityCalculator ..> Priority : returns
+```
+
+
+
+
+## Entities
+
+These are objects defined by their **identity** that persists even when their attributes change.
+
+### `entity.py`
+
+
+```python
+from dataclasses import dataclass, field
+from uuid import UUID, uuid4
+
+
+@dataclass
+class Entity:
+    # Automatically generates a unique UUID for the 'id' field;
+    #   excluded from the __init__ method
+    id: UUID = field(default_factory=uuid4, init=False)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, type(self)):
+            return NotImplemented
+        return self.id == other.id
+
+    def __hash__(self) -> int:
+        return hash(self.id)
+```
+
+
+### `task.py`
+
+```python
+from dataclasses import dataclass, field
+from typing import Optional
+
+from Chapter_4.TodoApp.todo_app.domain.entities.entity import Entity
+from Chapter_4.TodoApp.todo_app.domain.value_objects import (
+    Deadline,
+    Priority,
+    TaskStatus,
+)
+
+
+@dataclass
+class Task(Entity):
+    title: str
+    description: str
+    due_date: Optional[Deadline] = None
+    priority: Priority = Priority.MEDIUM
+    status: TaskStatus = field(default=TaskStatus.TODO, init=False)
+
+    def start(self) -> None:
+        if self.status != TaskStatus.TODO:
+            raise ValueError("Only tasks with 'TODO' status can be started")
+        self.status = TaskStatus.IN_PROGRESS
+
+    def complete(self) -> None:
+        if self.status == TaskStatus.DONE:
+            raise ValueError("Task is already completed")
+        self.status = TaskStatus.DONE
+
+    def is_overdue(self) -> bool:
+        return self.due_date is not None and self.due_date.is_overdue()
+```
+
+### `project.py`
+
+```python
+from dataclasses import dataclass, field
+from typing import Optional
+from uuid import UUID
+
+from Chapter_4.TodoApp.todo_app.domain.entities.entity import Entity
+from Chapter_4.TodoApp.todo_app.domain.entities.task import Task
+
+
+@dataclass
+class Project(Entity):
+    name: str
+    description: str = ""
+    _tasks: dict[UUID, Task] = field(default_factory=dict, init=False)
+
+    def add_task(self, task: Task) -> None:
+        self._tasks[task.id] = task
+
+    def remove_task(self, task_id: UUID) -> None:
+        self._tasks.pop(task_id, None)
+
+    def get_task(self, task_id: UUID) -> Optional[Task]:
+        return self._tasks.get(task_id)
+
+    @property
+    def tasks(self) -> list[Task]:
+        return list(self._tasks.values())
+```
+
+## Value Objects
+
+These are immutable objects defined by their **attributes** rather than identity. Two Money objects with the same currency and amount are considered equal.
+
+```python
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
+from enum import Enum
+
+
+class TaskStatus(Enum):
+    TODO = "TODO"
+    IN_PROGRESS = "IN_PROGRESS"
+    DONE = "DONE"
+
+
+class Priority(Enum):
+    LOW = 1
+    MEDIUM = 2
+    HIGH = 3
+
+
+# frozen=True makes this immutable as it should be for a Value Object
+@dataclass(frozen=True)
+class Deadline:
+    due_date: datetime
+
+    def __post_init__(self):
+        if not self.due_date.tzinfo:
+            raise ValueError("Deadline must use timezone-aware datetime")
+        if self.due_date < datetime.now(timezone.utc):
+            raise ValueError("Deadline cannot be in the past")
+
+    def is_overdue(self) -> bool:
+        return datetime.now(timezone.utc) > self.due_date
+
+    def time_remaining(self) -> timedelta:
+        return max(timedelta(0), self.due_date - datetime.now(timezone.utc))
+
+    def is_approaching(self, warning_threshold: timedelta = timedelta(days=1)) -> bool:
+        return timedelta(0) < self.time_remaining() <= warning_threshold
+```
+
+## Domain services
+
+These represent stateless operations that don’t naturally belong to a single entity or value object. They handle **domain logic** that spans multiple objects, like calculating shipping costs based on an order’s items and a customer’s location.
+
+```python
+from datetime import timedelta
+
+from Chapter_4.TodoApp.todo_app.domain.entities.task import Task
+from Chapter_4.TodoApp.todo_app.domain.value_objects import Priority
+
+
+class TaskPriorityCalculator:
+    @staticmethod
+    def calculate_priority(task: Task) -> Priority:
+        if task.is_overdue():
+            return Priority.HIGH
+        elif task.due_date and task.due_date.time_remaining() <= timedelta(days=2):
+            return Priority.MEDIUM
+        else:
+            return Priority.LOW
+```
+
+## Usage Examples
+
+
+```python
+# Create a task
+from datetime import datetime, timedelta
+
+from todo_app.domain.entities.task import Task
+from todo_app.domain.value_objects import Deadline, Priority
+
+task = Task(
+    title="Complete project proposal",
+    description="Draft and review the proposal for the new client project",
+    due_date=Deadline(datetime.now() + timedelta(days=7)),
+    priority=Priority.HIGH,
+)
+
+# Start the task
+task.start()
+print(task.status)  # TaskStatus.IN_PROGRESS
+
+# Complete the task
+task.complete()
+print(task.status)  # TaskStatus.DONE
+
+# Try to start a completed task
+try:
+    task.start()  # This will raise a ValueError
+except ValueError as e:
+    print(str(e))  # "Only tasks with 'TODO' status can be started"
+
+# Check if the task is overdue
+print(task.is_overdue())  # False
+```
