@@ -135,8 +135,8 @@ class Derived(Base): pass
 print(isinstance(Derived(), Base))  # True
 ```
 
-**Protocol**: Need `@runtime_checkable` decorator for `isinstance()` checks
-**ABC**: `isinstance()` works automatically
+- **Protocol**: Need `@runtime_checkable` decorator for `isinstance()` checks
+- **ABC**: `isinstance()` works automatically
 
 
 ## Summary Table

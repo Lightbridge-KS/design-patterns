@@ -299,6 +299,7 @@ def save(obj: Serializable):
 
 
 **Scenario:** You're building a notification system that needs to work with:
+ 
 - Your own notification classes
 - Third-party services (Twilio, SendGrid)
 - Future integrations (unknown providers)
