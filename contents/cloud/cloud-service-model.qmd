@@ -1,0 +1,114 @@
+---
+title: "Cloud Service Models: SaaS, PaaS, and IaaS"
+---
+
+
+These are three main categories of cloud computing services, representing different levels of abstraction and management responsibility.
+
+## The Stack Visualization
+
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         SaaS                                │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │              Application (Gmail, Slack)              │   │
+│  └──────────────────────────────────────────────────────┘   │
+│            Data | Runtime | Middleware | OS | etc.          │
+│                   ALL MANAGED FOR YOU                       │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                         PaaS                                │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │        Your Application & Data (YOU MANAGE)          │   │
+│  ├──────────────────────────────────────────────────────┤   │
+│  │   Runtime | Middleware | OS | Virtualization | etc.  │   │
+│  │              (PROVIDER MANAGES)                      │   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                         IaaS                                │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │   Application | Data | Runtime | Middleware | OS     │   │
+│  │                  (YOU MANAGE)                        │   │
+│  ├──────────────────────────────────────────────────────┤   │
+│  │   Virtualization | Servers | Storage | Networking    │   │
+│  │              (PROVIDER MANAGES)                      │   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 1. IaaS (Infrastructure as a Service)
+
+
+**What you get:** Virtual machines, storage, networks - the raw computing infrastructure
+
+**What you manage:** Everything from the OS up (operating system, runtime, middleware, data, applications)
+
+**Examples:**
+- **AWS EC2** - Virtual servers in the cloud
+- **Google Compute Engine** - VM instances
+- **DigitalOcean Droplets** - Simple virtual machines
+- **Azure Virtual Machines**
+
+**Use case:** You want full control over your infrastructure but don't want to manage physical hardware.
+
+## 2. PaaS (Platform as a Service)
+
+
+**What you get:** A platform to deploy your application without managing infrastructure
+
+**What you manage:** Just your application code and data
+
+**Examples:**
+- **Netlify** (you're already using this!) - Deploy static sites
+- **Firebase Hosting** (you have this!) - Host web apps with backend services
+- **Heroku** - Deploy apps from Git
+- **Google App Engine** - Scalable web applications
+- **Vercel** - Deploy Next.js and other frontend apps
+
+**Use case:** You want to focus on coding your app, not managing servers, databases, or scaling.
+
+## 3. SaaS (Software as a Service)
+
+
+**What you get:** Ready-to-use software applications
+
+**What you manage:** Just your data and configuration
+
+**Examples:**
+- **Gmail** - Email service
+- **Google Workspace** - Office suite
+- **Slack** - Team communication
+- **Dropbox** - File storage
+- **Salesforce** - CRM software
+- **Claude.ai** - AI assistant (yes, this!)
+
+**Use case:** You just want to use the software without installing or maintaining anything.
+
+## Relevant to Your Work
+
+
+```
+Your Current Stack:
+┌────────────────────────────────────────┐
+│  Code Editor (VSCode, RStudio) - Local │
+│  ↓                                     │
+│  Git/GitHub - Version Control (SaaS)   │
+│  ↓                                     │
+│  Quarto - Build docs (Local)           │
+│  ↓                                     │
+│  Netlify/Firebase - Deploy (PaaS)      │
+│  ↓                                     │
+│  End Users Access Your Site            │
+└────────────────────────────────────────┘
+```
+
+**For medical imaging AI projects:**
+- **IaaS**: Use EC2/GCE if you need GPU instances for training deep learning models
+- **PaaS**: Use Firebase for hosting your AI model inference API
+- **SaaS**: Use Claude API or other AI services in your applications
+
+The key difference is the **responsibility boundary** - as you move from IaaS → PaaS → SaaS, you manage less and the provider manages more.

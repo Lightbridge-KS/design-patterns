@@ -48,6 +48,12 @@ book:
         - "contents/app-architect/app-arch-clean-architecture.qmd"
         - "contents/app-architect/app-arch-core.qmd"
         - "contents/app-architect/app-arch-clean-architect-dotnet.qmd"
+    - part: Cloud
+      chapters: 
+        - text: "Cloud Service"
+          href: "contents/cloud/cloud-service-model.qmd"
+        - text: "Middleware"
+          href: "contents/cloud/middleware.qmd"
     - part: Repository Architecture
       chapters: 
         - "contents/repo-architect/microservice-acme-ai.qmd"
