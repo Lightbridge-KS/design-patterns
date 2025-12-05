@@ -54,6 +54,8 @@ book:
           href: "contents/cloud/cloud-service-model.qmd"
         - text: "Middleware"
           href: "contents/cloud/middleware.qmd"
+        - text: "API Gateway vs MiddleWare"
+          href: "contents/cloud/api-gateway-vs-middleware.qmd"
     - part: Repository Architecture
       chapters: 
         - "contents/repo-architect/microservice-acme-ai.qmd"
