@@ -1,0 +1,196 @@
+---
+title: "API Gateway vs Service Mesh"
+---
+
+## High-Level Overview
+
+
+**API Gateway** and **Service Mesh** are both infrastructure patterns for managing communication between services, but they operate at different layers and solve different problems:
+
+- **API Gateway**: Entry point for external clients → internal services (North-South traffic)
+- **Service Mesh**: Communication layer between internal services (East-West traffic)
+
+
+## Visual Architecture
+
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    External Clients                         │
+│              (Web, Mobile, Third-party)                     │
+└────────────────────────┬────────────────────────────────────┘
+                         │
+                         ▼
+              ┌──────────────────────┐
+              │    API GATEWAY       │ ◄── North-South Traffic
+              │  (Kong, AWS API GW)  │
+              └──────────┬───────────┘
+                         │
+         ┌───────────────┼───────────────┐
+         │               │               │
+         ▼               ▼               ▼
+    ┌────────┐      ┌────────┐      ┌────────┐
+    │Service │◄────►│Service │◄────►│Service │
+    │   A    │      │   B    │      │   C    │
+    └────────┘      └────────┘      └────────┘
+         ▲               ▲               ▲
+         │               │               │
+         └───────────────┴───────────────┘
+              Service Mesh (Istio, Linkerd)
+              ◄── East-West Traffic
+```
+
+
+## Key Differences
+
+
+### 1. Traffic Direction
+
+
+**API Gateway:**
+```
+External → Gateway → Internal Services
+(One entry point for all external traffic)
+```
+
+**Service Mesh:**
+```
+Service A ←→ Service B ←→ Service C
+(Direct service-to-service within cluster)
+```
+
+
+### 2. Primary Responsibilities
+
+
+| Feature | API Gateway | Service Mesh |
+|---------|-------------|--------------|
+| **Authentication** | ✅ External auth (OAuth, JWT) | ✅ Internal mTLS |
+| **Rate Limiting** | ✅ Per client/API key | ✅ Per service |
+| **Routing** | ✅ Path-based routing | ✅ Version/canary routing |
+| **Load Balancing** | ✅ To backend services | ✅ Between service instances |
+| **Protocol Translation** | ✅ REST → gRPC | ❌ Usually same protocol |
+| **Request/Response Transform** | ✅ Common | ❌ Rare |
+| **Service Discovery** | ❌ or Limited | ✅ Core feature |
+| **Circuit Breaking** | ✅ At edge | ✅ Between all services |
+| **Observability** | ✅ Edge metrics | ✅ Full service mesh metrics |
+
+
+### 3. Implementation Pattern
+
+
+**API Gateway:**
+- Centralized component
+- Single or few instances
+- Sits at cluster boundary
+- Examples: Kong, AWS API Gateway, Azure API Management
+
+**Service Mesh:**
+- Distributed sidecar proxies
+- One proxy per service instance
+- Inside the cluster
+- Examples: Istio, Linkerd, Consul Connect
+
+
+## Architecture Diagram with Both
+
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   Internet                              │
+└────────────────────────┬────────────────────────────────┘
+                         │
+                         ▼
+              ┌──────────────────────┐
+              │   Load Balancer      │
+              └──────────┬───────────┘
+                         │
+                         ▼
+              ┌──────────────────────┐
+              │   API GATEWAY        │
+              │   - Auth             │
+              │   - Rate Limiting    │
+              │   - API Composition  │
+              └──────────┬───────────┘
+                         │
+                         ▼
+    ┌────────────────────────────────────────────┐
+    │        Kubernetes Cluster                  │
+    │                                            │
+    │  ┌─────────────────────────────────────┐  │
+    │  │     Service Mesh (Istio)            │  │
+    │  │                                     │  │
+    │  │  ┌──────────┐    ┌──────────┐     │  │
+    │  │  │ Service A│    │ Service B│     │  │
+    │  │  │  [App]   │───►│  [App]   │     │  │
+    │  │  │  [Envoy] │◄───│  [Envoy] │     │  │
+    │  │  └──────────┘    └──────────┘     │  │
+    │  │       │               │            │  │
+    │  │       └───────┬───────┘            │  │
+    │  │               ▼                    │  │
+    │  │          ┌──────────┐              │  │
+    │  │          │ Service C│              │  │
+    │  │          │  [App]   │              │  │
+    │  │          │  [Envoy] │              │  │
+    │  │          └──────────┘              │  │
+    │  │                                     │  │
+    │  └─────────────────────────────────────┘  │
+    │                                            │
+    └────────────────────────────────────────────┘
+```
+
+
+## When to Use Each
+
+
+**Use API Gateway when:**
+- You need a single entry point for external clients
+- You need to aggregate multiple backend calls
+- You need protocol translation (REST → gRPC)
+- You need different APIs for different client types (web vs mobile)
+- You need centralized security/auth for external traffic
+
+**Use Service Mesh when:**
+- You have many microservices talking to each other
+- You need observability across all service communications
+- You need fine-grained traffic control (canary deployments, A/B testing)
+- You need secure service-to-service communication (mTLS)
+- You want to offload networking concerns from application code
+
+**Use Both when:**
+- You have a microservices architecture exposed to external clients
+- API Gateway handles external → internal
+- Service Mesh handles internal ←→ internal
+
+
+## Practical Example for Healthcare
+
+
+Given your radiology background, here's a relevant example:
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Medical Imaging Portal (External)                  │
+└──────────────────────┬──────────────────────────────┘
+                       │
+                       ▼
+            ┌─────────────────────┐
+            │   API GATEWAY       │
+            │   - Doctor Auth     │
+            │   - HIPAA Logging   │
+            └──────────┬──────────┘
+                       │
+       ┌───────────────┼────────────────┐
+       │               │                │
+       ▼               ▼                ▼
+  ┌─────────┐    ┌──────────┐    ┌──────────┐
+  │ DICOM   │◄──►│ AI Model │◄──►│ Report   │
+  │ Service │    │ Service  │    │ Service  │
+  └─────────┘    └──────────┘    └──────────┘
+       ▲               ▲                ▲
+       └───────────────┴────────────────┘
+              Service Mesh
+         - mTLS for patient data
+         - Tracing for audit
+         - Circuit breaking
+```
