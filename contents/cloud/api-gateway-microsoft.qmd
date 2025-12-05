@@ -1,0 +1,263 @@
+---
+title: API Gateway with ASP.NET Core + YARP or Azure APIM
+---
+
+
+C# is an excellent choice for implementing an API Gateway on Azure. Let me show you the approaches and a concrete example.
+
+## Two Main Approaches
+
+
+**1. Managed Service: Azure API Management (APIM)**
+
+This is Azure's fully managed API Gateway service that handles all the features you listed out-of-the-box.
+
+**2. Custom Gateway: ASP.NET Core with YARP**
+
+Build your own using ASP.NET Core and reverse proxy libraries.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Approach Comparison                     │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Azure APIM                    Custom ASP.NET Core + YARP   │
+│  ├─ Fully Managed              ├─ Full Control              │
+│  ├─ Built-in Auth/RBAC         ├─ Custom Logic              │
+│  ├─ Built-in Rate Limiting     ├─ Fine-grained Config       │
+│  ├─ WAF Integration            ├─ Lighter Weight            │
+│  ├─ Portal & Analytics         ├─ Lower Cost (compute only) │
+│  └─ Higher Cost                └─ More Dev Work             │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+
+## Custom API Gateway Example (ASP.NET Core + YARP)
+
+
+Here's a simplified implementation that handles routing, auth, and rate limiting:
+
+**Project Structure:**
+
+```
+APIGateway/
+├── Program.cs
+├── appsettings.json
+├── Middleware/
+│   ├── RateLimitingMiddleware.cs
+│   └── CorsMiddleware.cs
+└── APIGateway.csproj
+```
+
+**appsettings.json** - Configuration for routes and backend services:
+
+```json
+{
+  "ReverseProxy": {
+    "Routes": {
+      "ai-service-1-route": {
+        "ClusterId": "ai-service-1",
+        "Match": {
+          "Path": "/api/inference/v1/{**catch-all}"
+        },
+        "Transforms": [
+          { "PathPattern": "/v1/{**catch-all}" }
+        ]
+      },
+      "ai-service-2-route": {
+        "ClusterId": "ai-service-2",
+        "Match": {
+          "Path": "/api/inference/v2/{**catch-all}"
+        },
+        "Transforms": [
+          { "PathPattern": "/v2/{**catch-all}" }
+        ]
+      }
+    },
+    "Clusters": {
+      "ai-service-1": {
+        "Destinations": {
+          "destination1": {
+            "Address": "https://ai-service-1.azurewebsites.net"
+          }
+        }
+      },
+      "ai-service-2": {
+        "Destinations": {
+          "destination1": {
+            "Address": "https://ai-service-2.azurewebsites.net"
+          }
+        }
+      }
+    }
+  },
+  "Authentication": {
+    "Authority": "https://login.microsoftonline.com/{tenant-id}",
+    "Audience": "api://your-api-gateway"
+  }
+}
+```
+
+**Program.cs** - Main gateway setup:
+
+```csharp
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Identity.Web;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Add YARP Reverse Proxy
+builder.Services.AddReverseProxy()
+    .LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
+
+// Add Azure AD Authentication (OAuth 2.0 / OIDC)
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("Authentication"));
+
+// Add Authorization
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("RequireAuthenticatedUser", policy =>
+        policy.RequireAuthenticatedUser());
+    
+    options.AddPolicy("AdminOnly", policy =>
+        policy.RequireRole("Admin"));
+});
+
+// Add CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowWebClients", policy =>
+    {
+        policy.WithOrigins("https://your-web-client.com")
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
+
+// Add Rate Limiting (ASP.NET Core 7+)
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("fixed", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 100;
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit = 10;
+    });
+});
+
+var app = builder.Build();
+
+// Configure Middleware Pipeline
+app.UseCors("AllowWebClients");
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseRateLimiter();
+
+// Map reverse proxy with auth policy
+app.MapReverseProxy(proxyPipeline =>
+{
+    proxyPipeline.UseSessionAffinity();
+    proxyPipeline.UseLoadBalancing();
+});
+
+app.Run();
+```
+
+
+## Request Flow Diagram
+
+
+```
+Client Request
+     │
+     ▼
+┌─────────────────────────────┐
+│   CORS Middleware           │  Check origin
+└─────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────┐
+│   Authentication            │  Validate JWT token
+│   (Azure AD / OAuth 2.0)    │
+└─────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────┐
+│   Authorization             │  Check roles/claims
+│   (RBAC)                    │
+└─────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────┐
+│   Rate Limiting             │  Check request quota
+└─────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────┐
+│   YARP Reverse Proxy        │  Route to backend
+│   - Route Matching          │
+│   - Load Balancing          │
+│   - Path Transformation     │
+└─────────────────────────────┘
+     │
+     ▼
+Backend Service (AI Inference)
+```
+
+
+## Key Features Implemented
+
+
+**Authentication (OAuth 2.0 / OIDC):**
+- Uses Azure AD / Microsoft Identity Platform
+- Validates JWT tokens automatically
+- Extracts user claims for authorization
+
+**RBAC (Role-Based Access Control):**
+- Define policies based on roles in JWT claims
+- Apply at route level or controller level
+
+**Rate Limiting:**
+- Built-in ASP.NET Core 7+ rate limiter
+- Per-user or per-IP limiting possible
+
+**CORS:**
+- Configure allowed origins
+- Handle preflight requests
+
+**Routing:**
+- YARP handles path transformation
+- Load balancing across multiple instances
+- Session affinity (sticky sessions) support
+
+
+## NuGet Packages Needed
+
+
+```xml
+<ItemGroup>
+  <PackageReference Include="Yarp.ReverseProxy" Version="2.1.0" />
+  <PackageReference Include="Microsoft.Identity.Web" Version="2.15.0" />
+  <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
+</ItemGroup>
+```
+
+
+## When to Choose Each Approach
+
+
+**Use Azure APIM when:**
+- You need enterprise features (analytics, developer portal, monetization)
+- Multiple teams consume your APIs
+- You want zero-code API management
+- Budget allows for managed service costs
+
+**Use Custom ASP.NET Core Gateway when:**
+- You need fine-grained control
+- Budget is tight (only pay for compute)
+- You have specific custom requirements
+- Your team is comfortable with C# development

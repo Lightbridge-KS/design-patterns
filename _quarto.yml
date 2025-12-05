@@ -58,6 +58,8 @@ book:
           href: "contents/cloud/api-gateway-vs-middleware.qmd"
         - text: "API Gateway vs Service Mesh"
           href: "contents/cloud/api-gateway-vs-service-mesh.qmd"
+        - text: "API Gateway Microsoft"
+          href: "contents/cloud/api-gateway-microsoft.qmd"
     - part: Repository Architecture
       chapters: 
         - "contents/repo-architect/microservice-acme-ai.qmd"
