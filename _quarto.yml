@@ -60,6 +60,10 @@ book:
           href: "contents/cloud/api-gateway-vs-service-mesh.qmd"
         - text: "API Gateway Microsoft"
           href: "contents/cloud/api-gateway-microsoft.qmd"
+    - part: Networking
+      chapters: 
+        - text: "Subnet & Gateway"
+          href: "contents/network/subnet-gateway.qmd"
     - part: Repository Architecture
       chapters: 
         - "contents/repo-architect/microservice-acme-ai.qmd"

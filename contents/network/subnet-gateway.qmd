@@ -1,0 +1,474 @@
+---
+title: "Subnet and Gateway Explained"
+---
+
+Let me break down IP networking fundamentals that are crucial for Docker and microservices.
+
+## IP Address Structure
+
+
+An IP address is like a **postal address** - it has a network part (street) and a host part (house number).
+
+```
+IP Address: 172.21.0.15
+
+┌─────────────────────────────────────────┐
+│  172  .  21  .  0  .  15                │
+│  ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲   ▲▲▲▲                 │
+│  Network Part      Host Part            │
+│  (Street name)     (House number)       │
+└─────────────────────────────────────────┘
+```
+
+
+## What is /16? (CIDR Notation)
+
+
+The `/16` tells you **how many bits** are used for the network part.
+
+```
+IP Address in Binary (32 bits total):
+
+172.21.0.15
+
+10101100.00010101.00000000.00001111
+▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲ ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+  16 bits          16 bits
+  (Network)        (Host)
+
+/16 means: "First 16 bits are the network, remaining 16 bits are for hosts"
+```
+
+
+### Common CIDR Notations
+
+```
+/8  = 255.0.0.0       = 16,777,214 hosts (Class A)
+/16 = 255.255.0.0     = 65,534 hosts (Class B)
+/24 = 255.255.255.0   = 254 hosts (Class C)
+/32 = 255.255.255.255 = 1 host (single IP)
+```
+
+
+## Understanding 172.21.0.0/16
+
+
+```yaml
+subnet: 172.21.0.0/16
+```
+
+This means:
+
+```
+Network Range:
+
+┌────────────────────────────────────────────────┐
+│ Network:     172.21.0.0/16                     │
+│                                                │
+│ First IP:    172.21.0.0   (network address)    │
+│ Last IP:     172.21.255.255 (broadcast)        │
+│                                                │
+│ Usable IPs:  172.21.0.1 to 172.21.255.254      │
+│              ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲        │
+│              Total: 65,534 usable addresses    │
+│                                                │
+│ Fixed part:  172.21                            │
+│ Variable:    0-255 . 0-255                     │
+└────────────────────────────────────────────────┘
+```
+
+
+### Visual Breakdown
+
+
+```
+172.21.0.0/16
+  │  │  │ │
+  │  │  │ └─── Can be 0-255
+  │  │  └───── Can be 0-255
+  │  └──────── Fixed (part of network)
+  └─────────── Fixed (part of network)
+
+Examples of IPs in this subnet:
+✓ 172.21.0.1      (valid)
+✓ 172.21.0.50     (valid)
+✓ 172.21.100.200  (valid)
+✓ 172.21.255.254  (valid)
+✗ 172.22.0.1      (different network!)
+✗ 192.168.1.1     (different network!)
+```
+
+
+## What is a Gateway?
+
+
+The gateway is the **"exit door"** from the network - like the main gate of your hospital.
+
+```yaml
+gateway: 172.21.0.1
+```
+
+**Gateway's role:**
+
+```
+Docker Container Network (172.21.0.0/16)
+┌───────────────────────────────────────────────┐
+│                                               │
+│  Container 1: 172.21.0.2                      │
+│  Container 2: 172.21.0.3                      │
+│  Container 3: 172.21.0.4                      │
+│                                               │
+│               │                               │
+│               │ All traffic to outside        │
+│               │ goes through gateway          │
+│               ▼                               │
+│         ┌──────────┐                          │
+│         │ Gateway  │  (Router/Bridge)         │
+│         │172.21.0.1│                          │
+│         └─────┬────┘                          │
+└───────────────┼───────────────────────────────┘
+                │
+                │ Routes to other networks
+                │
+        ┌───────▼────────┐
+        │  Host Network  │
+        │  or Internet   │
+        └────────────────┘
+```
+
+
+## How Containers Use Gateway
+
+
+When a container wants to reach **outside its network**:
+
+```
+Step-by-step:
+
+1. Container (172.21.0.5) wants to reach www.google.com
+
+2. Container checks: "Is 172.217.160.78 (google) in my subnet?"
+   172.21.x.x? No → Need to use gateway!
+
+3. Container sends packet to gateway (172.21.0.1)
+
+4. Gateway forwards packet to external network
+
+5. Response comes back through gateway
+
+6. Gateway delivers response to container
+```
+
+
+### Communication Within Same Subnet (No Gateway Needed)
+
+```
+backend-net (172.21.0.0/16)
+┌─────────────────────────────────────┐
+│                                     │
+│  postgres: 172.21.0.3               │
+│       │                             │
+│       │ Direct communication        │
+│       │ (same subnet, no gateway)   │
+│       ▼                             │
+│  api-backend: 172.21.0.2            │
+│                                     │
+└─────────────────────────────────────┘
+```
+
+
+### Communication to Different Subnet (Gateway Required)
+
+```
+frontend-net (172.20.0.0/16)
+┌────────────────────────────────────┐
+│  web-frontend: 172.20.0.2          │
+│        │                           │
+│        │                           │
+│        ▼                           │
+│  Gateway: 172.20.0.1               │
+└────────┬───────────────────────────┘
+         │
+         │ Routes between networks
+         │
+┌────────▼───────────────────────────┐
+│  Gateway: 172.21.0.1               │
+│        │                           │
+│        ▼                           │
+│  api-backend: 172.21.0.2           │
+│                                    │
+│  backend-net (172.21.0.0/16)       │
+└────────────────────────────────────┘
+```
+
+
+## Different Subnet Sizes
+
+
+### /24 (Small Network)
+
+```yaml
+subnet: 172.21.0.0/24
+gateway: 172.21.0.1
+```
+
+```
+Network: 172.21.0.0/24
+
+┌──────────────────────────────────┐
+│ Usable range:                    │
+│ 172.21.0.1 to 172.21.0.254       │
+│                                  │
+│ Fixed:    172.21.0               │
+│ Variable: 0-255 (last octet only)│
+│                                  │
+│ Total hosts: 254                 │
+└──────────────────────────────────┘
+
+Good for: Small projects, testing
+```
+
+
+### /16 (Medium Network)
+
+```yaml
+subnet: 172.21.0.0/16
+gateway: 172.21.0.1
+```
+
+```
+Network: 172.21.0.0/16
+
+┌──────────────────────────────────────┐
+│ Usable range:                        │
+│ 172.21.0.1 to 172.21.255.254         │
+│                                      │
+│ Fixed:    172.21                     │
+│ Variable: 0-255 . 0-255              │
+│                                      │
+│ Total hosts: 65,534                  │
+└──────────────────────────────────────┘
+
+Good for: Production systems, microservices
+```
+
+
+### /8 (Large Network)
+
+```yaml
+subnet: 10.0.0.0/8
+gateway: 10.0.0.1
+```
+
+```
+Network: 10.0.0.0/8
+
+┌──────────────────────────────────────┐
+│ Usable range:                        │
+│ 10.0.0.1 to 10.255.255.254           │
+│                                      │
+│ Fixed:    10                         │
+│ Variable: 0-255 . 0-255 . 0-255      │
+│                                      │
+│ Total hosts: 16,777,214              │
+└──────────────────────────────────────┘
+
+Good for: Enterprise networks, cloud providers
+```
+
+
+## Real Docker Compose Example
+
+
+```yaml
+version: '3.8'
+
+networks:
+  frontend-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
+
+  backend-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/16
+          gateway: 172.21.0.1
+
+services:
+  web-frontend:
+    image: nginx
+    networks:
+      frontend-net:
+        ipv4_address: 172.20.0.10  # Must be in subnet range!
+
+  api-backend:
+    image: python:3.11
+    networks:
+      frontend-net:
+        ipv4_address: 172.20.0.20  # In frontend subnet
+      backend-net:
+        ipv4_address: 172.21.0.20  # In backend subnet
+
+  postgres:
+    image: postgres:15
+    networks:
+      backend-net:
+        ipv4_address: 172.21.0.30  # In backend subnet
+```
+
+
+## Network Architecture Visualization
+
+
+```
+┌─────────────────────────────────────────────────────┐
+│ frontend-net: 172.20.0.0/16                         │
+│                                                     │
+│ ┌─────────────┐          ┌─────────────┐           │
+│ │web-frontend │          │ api-backend │           │
+│ │ 172.20.0.10 │─────────▶│ 172.20.0.20 │           │
+│ └─────────────┘          └──────┬──────┘           │
+│                                 │                   │
+│ Gateway: 172.20.0.1             │                   │
+└─────────────────────────────────┼───────────────────┘
+                                  │
+                                  │ (Bridge)
+                                  │
+┌─────────────────────────────────┼───────────────────┐
+│ backend-net: 172.21.0.0/16      │                   │
+│ Gateway: 172.21.0.1             │                   │
+│                                 │                   │
+│                        ┌────────▼──────┐            │
+│                        │  api-backend  │            │
+│                        │  172.21.0.20  │            │
+│                        └────────┬──────┘            │
+│                                 │                   │
+│                                 ▼                   │
+│                        ┌─────────────┐              │
+│                        │  postgres   │              │
+│                        │ 172.21.0.30 │              │
+│                        └─────────────┘              │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+```
+
+
+## Reserved IP Addresses in Each Subnet
+
+
+```
+For subnet 172.21.0.0/16:
+
+┌──────────────────────────────────────────────┐
+│ 172.21.0.0       Network address (reserved)  │
+│ 172.21.0.1       Gateway (usually)           │
+│ 172.21.0.2       First usable host           │
+│ 172.21.0.3       Host                        │
+│ ...                                          │
+│ 172.21.255.254   Last usable host            │
+│ 172.21.255.255   Broadcast address (reserved)│
+└──────────────────────────────────────────────┘
+```
+
+
+## Private IP Ranges (RFC 1918)
+
+
+These are **safe for internal networks** (not routable on internet):
+
+```
+┌────────────────────────────────────────────┐
+│ 10.0.0.0/8                                 │
+│   Range: 10.0.0.0 - 10.255.255.255         │
+│   Total: ~16 million addresses             │
+│   Used by: Large enterprises, AWS VPCs     │
+├────────────────────────────────────────────┤
+│ 172.16.0.0/12                              │
+│   Range: 172.16.0.0 - 172.31.255.255       │
+│   Total: ~1 million addresses              │
+│   Used by: Medium networks, Docker default │
+├────────────────────────────────────────────┤
+│ 192.168.0.0/16                             │
+│   Range: 192.168.0.0 - 192.168.255.255     │
+│   Total: 65,536 addresses                  │
+│   Used by: Home routers, small offices     │
+└────────────────────────────────────────────┘
+```
+
+
+## Quick Subnet Calculator
+
+
+```
+/8  → 255.0.0.0       → X.?.?.?       → 16,777,214 hosts
+/16 → 255.255.0.0     → X.X.?.?       → 65,534 hosts
+/24 → 255.255.255.0   → X.X.X.?       → 254 hosts
+/25 → 255.255.255.128 → X.X.X.0-127   → 126 hosts
+/26 → 255.255.255.192 → X.X.X.0-63    → 62 hosts
+/27 → 255.255.255.224 → X.X.X.0-31    → 30 hosts
+/28 → 255.255.255.240 → X.X.X.0-15    → 14 hosts
+/32 → 255.255.255.255 → X.X.X.X       → 1 host (single IP)
+
+Where:
+X = Fixed part
+? = Variable part (0-255)
+```
+
+
+## Practical Example: Radiology Department Network
+
+
+```yaml
+networks:
+  # Public-facing network (smaller, DMZ)
+  dmz-net:
+    ipam:
+      config:
+        - subnet: 172.25.0.0/24      # 254 hosts
+          gateway: 172.25.0.1
+
+  # Application network (medium size)
+  app-net:
+    ipam:
+      config:
+        - subnet: 172.26.0.0/16      # 65,534 hosts
+          gateway: 172.26.0.1
+
+  # Data network (isolated, medium size)
+  data-net:
+    ipam:
+      config:
+        - subnet: 172.27.0.0/16      # 65,534 hosts
+          gateway: 172.27.0.1
+
+  # AI processing network (separate for security)
+  ai-net:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24      # 254 hosts
+          gateway: 172.28.0.1
+```
+
+
+## Key Takeaways
+
+
+1. **Subnet** = Range of IP addresses (the neighborhood)
+2. **Gateway** = Router/exit point (the front gate)
+3. **/16** = First 16 bits are network, last 16 are for hosts
+4. **Smaller number after /** = More addresses (e.g., /8 > /16 > /24)
+
+
+**Memory trick:**
+
+```
+/8  = HUGE   (city)
+/16 = BIG    (district)
+/24 = SMALL  (street)
+/32 = SINGLE (house)
+```
+
