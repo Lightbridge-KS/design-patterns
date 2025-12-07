@@ -1,0 +1,448 @@
+---
+title: "How Gateway Routes to Specific Services"
+---
+
+::: {.callout-note appearance="default" collapse="false"}
+**Q:** Let's say Service A in subnet-1 want to communicate with Service B in subnet-2 through Gateway. 
+
+There are many services in subnet-2. How does gateway knows where to route to the correct service that Service A wants to talk to?
+
+(**Warning:** This is an incorrect question)
+:::
+
+This gets to the heart of how **IP routing** and **port numbers** work together. Let me break it down.
+
+
+## Short Answer
+
+
+The gateway **doesn't** choose the service - it only routes to the **subnet**. The specific service is chosen by the **IP address + port number** that Service A specifies in its request.
+
+```
+Service A says: "I want to talk to 172.21.0.30:5432"
+                                    ▲         ▲
+                                    │         │
+                                    IP        Port
+                                 (which host) (which service)
+```
+
+
+## The Complete Routing Process
+
+
+Let's walk through a real example:
+
+```
+Service A (web-frontend) wants to call Service B (postgres)
+
+subnet-1 (172.20.0.0/16)          subnet-2 (172.21.0.0/16)
+┌─────────────────────┐           ┌──────────────────────┐
+│                     │           │                      │
+│  Service A          │           │  Service B           │
+│  (web-frontend)     │           │  (postgres)          │
+│  172.20.0.10        │           │  172.21.0.30:5432    │
+│                     │           │                      │
+│  Service C          │           │  Service D           │
+│  (nginx)            │           │  (redis)             │
+│  172.20.0.20        │           │  172.21.0.40:6379    │
+│                     │           │                      │
+└──────────┬──────────┘           └──────────────────────┘
+           │                      
+           │                      
+      Gateway                     
+   172.20.0.1                     
+   172.21.0.1                     
+```
+
+
+## Step-by-Step: Service A → Service B
+
+
+### Step 1: DNS Resolution (Before Routing)
+
+Service A needs to know Service B's IP address first:
+
+```python
+# Inside Service A container (web-frontend)
+import requests
+
+# Service A makes a request using hostname
+response = requests.get('http://postgres:5432')
+                            ▲
+                            │
+              Docker's internal DNS resolves this
+```
+
+**DNS Resolution:**
+
+```
+Service A: "What is the IP of 'postgres'?"
+           │
+           ▼
+Docker DNS: "postgres = 172.21.0.30"
+           │
+           ▼
+Service A: "Okay, I'll send request to 172.21.0.30:5432"
+```
+
+
+### Step 2: Check if Destination is Local or Remote
+
+Service A checks: "Is 172.21.0.30 in my subnet?"
+
+```
+Service A's network: 172.20.0.0/16
+Target address:      172.21.0.30
+
+Check:
+172.20.x.x  vs  172.21.x.x
+   ▲               ▲
+Different! → Must use gateway
+```
+
+
+### Step 3: Send to Gateway
+
+Service A sends packet to gateway, but the packet **contains the final destination**:
+
+```
+Packet from Service A:
+┌────────────────────────────────────────┐
+│ From: 172.20.0.10:random_port          │
+│ To:   172.21.0.30:5432  ◄── Destination│
+│                                        │
+│ Data: "SELECT * FROM patients..."      │
+└────────────────────────────────────────┘
+        │
+        ▼
+   Gateway (172.20.0.1)
+```
+
+
+### Step 4: Gateway Routes Based on IP Address
+
+The gateway looks at the **destination IP** (not the port!):
+
+```
+Gateway receives packet:
+┌────────────────────────────────────┐
+│ Destination: 172.21.0.30:5432      │
+│              ▲▲▲▲▲▲▲▲▲▲            │
+│              │                     │
+│              Checks routing table  │
+└──────────────┼─────────────────────┘
+               │
+               ▼
+Routing Table:
+┌─────────────────────────────────────┐
+│ Network         │ Gateway           │
+├─────────────────┼───────────────────┤
+│ 172.20.0.0/16   │ Local (direct)    │
+│ 172.21.0.0/16   │ Local (direct)    │ ◄── Match!
+│ 0.0.0.0/0       │ 192.168.1.1       │
+└─────────────────┴───────────────────┘
+
+Gateway: "172.21.0.30 is in 172.21.0.0/16 network"
+         "I can deliver directly!"
+```
+
+
+### Step 5: Packet Arrives at Correct Host
+
+Gateway forwards packet to subnet-2:
+
+```
+subnet-2 (172.21.0.0/16)
+┌────────────────────────────────────────┐
+│                                        │
+│  Packet arrives:                       │
+│  Destination: 172.21.0.30:5432         │
+│                         ▲              │
+│                         │              │
+│          Network layer delivers to     │
+│          172.21.0.30                   │
+│                                        │
+│  ┌─────────────┐  ┌─────────────┐      │
+│  │ postgres    │  │ redis       │      │
+│  │ 172.21.0.30 │◄─│ 172.21.0.40 │      │
+│  └─────────────┘  └─────────────┘      │
+│                                        │
+└────────────────────────────────────────┘
+```
+
+
+### Step 6: Operating System Uses Port Number
+
+Once packet reaches the correct host (172.21.0.30), the OS uses the **port number** to deliver to the right service:
+
+```
+Host: 172.21.0.30 (postgres container)
+┌────────────────────────────────────────┐
+│ Incoming packet: :5432                 │
+│                                        │
+│ Operating System checks:               │
+│ "Which process is listening on 5432?"  │
+│                                        │
+│ Port Table:                            │
+│ ┌─────────────────────────────┐        │
+│ │ Port │ Process              │        │
+│ ├──────┼──────────────────────┤        │
+│ │ 5432 │ postgres (PID 1234)  │ ◄──    │
+│ │ 8080 │ (none)               │        │
+│ └──────┴──────────────────────┘        │
+│                                        │
+│ Delivers to postgres process!          │
+└────────────────────────────────────────┘
+```
+
+
+## Complete Flow Diagram
+
+
+```
+STEP 1: DNS Resolution
+────────────────────────
+Service A                    Docker DNS
+┌──────────┐                ┌──────────┐
+│"postgres"│───query───────▶│"postgres"│
+│          │◄──172.21.0.30──│ = 172.21.│
+└──────────┘                │   0.30   │
+                            └──────────┘
+
+STEP 2-3: Packet Creation & Send to Gateway
+────────────────────────────────────────────
+subnet-1
+┌─────────────────────────────────────┐
+│ Service A (172.20.0.10)             │
+│                                     │
+│ Creates packet:                     │
+│ ┌────────────────────────────────┐  │
+│ │ From: 172.20.0.10:54321        │  │
+│ │ To:   172.21.0.30:5432         │  │
+│ │ Data: SQL query                │  │
+│ └────────────────────────────────┘  │
+│          │                          │
+│          │ Sends to gateway         │
+│          ▼                          │
+│    Gateway (172.20.0.1)             │
+└──────────┬──────────────────────────┘
+           │
+           │
+STEP 4: Gateway Routes
+──────────────────────
+           │
+           │ Checks: 172.21.0.30 in which network?
+           │ Answer: 172.21.0.0/16
+           │
+           ▼
+┌──────────────────────────────────────┐
+│ subnet-2 (172.21.0.0/16)             │
+│                                      │
+│ Gateway (172.21.0.1)                 │
+│          │                           │
+│          │ Forward to 172.21.0.30    │
+│          ▼                           │
+│                                      │
+│ ┌──────────────┐  ┌──────────────┐   │
+│ │ Service B    │  │ Service D    │   │
+│ │ (postgres)   │  │ (redis)      │   │
+│ │ 172.21.0.30  │  │ 172.21.0.40  │   │
+│ │              │  │              │   │
+│ │ :5432 ◄──────┼──│              │   │
+│ │ :9090        │  │ :6379        │   │
+│ └──────────────┘  └──────────────┘   │
+│                                      │
+└──────────────────────────────────────┘
+
+STEP 5-6: OS Delivers to Process
+─────────────────────────────────
+Inside postgres container:
+┌────────────────────────────────┐
+│ Port :5432 → postgres process  │
+│ Port :9090 → metrics exporter  │
+└────────────────────────────────┘
+```
+
+
+## OSI Model Layers
+
+
+This process involves different network layers:
+
+```
+┌─────────────────────────────────────────────────┐
+│ Layer 7 (Application)                           │
+│ "I want to query postgres database"             │
+└───────────────────┬─────────────────────────────┘
+                    │
+┌───────────────────▼─────────────────────────────┐
+│ Layer 4 (Transport) - PORT NUMBERS              │
+│ "Use port 5432 for postgres"                    │
+│ :5432, :6379, :8080, etc.                       │
+└───────────────────┬─────────────────────────────┘
+                    │
+┌───────────────────▼─────────────────────────────┐
+│ Layer 3 (Network) - IP ADDRESSES                │
+│ "Route to 172.21.0.30"                          │
+│ Gateway operates here! ◄─────────────           │
+└───────────────────┬─────────────────────────────┘
+                    │
+┌───────────────────▼─────────────────────────────┐
+│ Layer 2 (Data Link) - MAC ADDRESSES             │
+│ "Physical delivery on the wire"                 │
+└─────────────────────────────────────────────────┘
+```
+
+
+## Key Insight: Two-Level Addressing
+
+
+```
+┌────────────────────────────────────────────────┐
+│                                                │
+│  IP Address = Which computer/container         │
+│  (Layer 3)    172.21.0.30                      │
+│               ▲                                │
+│               │                                │
+│               │  Gateway uses this             │
+│               │                                │
+│                                                │
+│  Port Number = Which service on that computer  │
+│  (Layer 4)     :5432                           │
+│                ▲                               │
+│                │                               │
+│                │  OS uses this                 │
+│                                                │
+└────────────────────────────────────────────────┘
+```
+
+
+## Real Example: Multiple Services on Same Host
+
+
+One container can run multiple services on different ports:
+
+```
+Container: 172.21.0.30
+┌─────────────────────────────────────┐
+│ IP: 172.21.0.30                     │
+│                                     │
+│ Services:                           │
+│ ┌─────────────────────────────────┐ │
+│ │ Port 5432 → PostgreSQL          │ │
+│ │ Port 9090 → Prometheus Exporter │ │
+│ │ Port 8080 → Health Check API    │ │
+│ └─────────────────────────────────┘ │
+│                                     │
+│ Requests:                           │
+│ 172.21.0.30:5432 → PostgreSQL       │
+│ 172.21.0.30:9090 → Metrics          │
+│ 172.21.0.30:8080 → Health           │
+└─────────────────────────────────────┘
+```
+
+
+## How Gateway's Routing Table Works
+
+
+```
+Gateway maintains a routing table:
+
+┌──────────────────┬─────────────────┬──────────┐
+│ Destination      │ Next Hop        │ Interface│
+├──────────────────┼─────────────────┼──────────┤
+│ 172.20.0.0/16    │ direct          │ eth0     │
+│ 172.21.0.0/16    │ direct          │ eth1     │
+│ 192.168.1.0/24   │ 192.168.1.1     │ eth2     │
+│ 0.0.0.0/0        │ 192.168.1.1     │ eth2     │
+└──────────────────┴─────────────────┴──────────┘
+
+When packet arrives with destination 172.21.0.30:
+1. Check 172.20.0.0/16? No, doesn't match
+2. Check 172.21.0.0/16? Yes! Match! ✓
+3. Forward via eth1 interface
+4. Don't even look at the port number!
+```
+
+
+## Analogy: Hospital Mail System
+
+
+```
+Think of it like hospital mail delivery:
+
+Gateway = Mail Room
+IP Address = Building + Room Number
+Port = Person in that room
+
+┌─────────────────────────────────────────────┐
+│ Mail addressed to:                          │
+│ "Building C, Room 302, Dr. Smith"           │
+│                                             │
+│ Mail room (gateway):                        │
+│ - Reads "Building C" (subnet)               │
+│ - Routes to Building C                      │
+│ - Doesn't care about "Dr. Smith" yet        │
+│                                             │
+│ Building C mail slot (OS):                  │
+│ - Reads "Room 302" (port)                   │
+│ - Delivers to Room 302                      │
+│                                             │
+│ Room 302 (process):                         │
+│ - Reads "Dr. Smith" (application)           │
+│ - Gives to Dr. Smith                        │
+└─────────────────────────────────────────────┘
+```
+
+
+## What Gateway Does NOT Do
+
+
+Gateway is **not** aware of:
+
+```
+✗ Which specific service (that's the port's job)
+✗ What application protocol (HTTP, SQL, etc.)
+✗ The content of the message
+✗ Which process will handle it
+
+Gateway ONLY knows:
+✓ Which subnet the IP belongs to
+✓ Which interface to forward the packet
+✓ How to reach that subnet
+```
+
+
+## Docker Compose Example
+
+
+```yaml
+services:
+  # Service A knows exactly where to send:
+  api-backend:
+    networks:
+      - backend-net
+    environment:
+      # Full address with port!
+      - DB_URL=postgresql://postgres:5432/mydb
+      #                      ▲         ▲
+      #                      IP        Port
+      #                    (via DNS)
+```
+
+**What happens:**
+1. `postgres` → DNS → `172.21.0.30`
+2. API creates packet: `172.21.0.30:5432`
+3. Gateway sees `172.21.x.x` → routes to backend-net
+4. Packet arrives at `172.21.0.30`
+5. OS sees `:5432` → delivers to postgres process
+
+
+## Key Takeaways
+
+
+1. **Gateway routes by IP address** (which subnet)
+2. **OS delivers by port number** (which service)
+3. **Service A specifies both** in its request
+4. **DNS resolves hostname to IP** before routing
+5. **Gateway is "dumb"** - just forwards packets to correct network

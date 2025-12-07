@@ -64,6 +64,8 @@ book:
       chapters: 
         - text: "Subnet & Gateway"
           href: "contents/network/subnet-gateway.qmd"
+        - text: "Gatway Routing to Service?"
+          href: "contents/network/gateway-to-service.qmd"
     - part: Repository Architecture
       chapters: 
         - "contents/repo-architect/microservice-acme-ai.qmd"
