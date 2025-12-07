@@ -66,6 +66,10 @@ book:
           href: "contents/network/subnet-gateway.qmd"
         - text: "Gatway Routing to Service?"
           href: "contents/network/gateway-to-service.qmd"
+    - part: Container
+      chapters: 
+        - text: "Docker Compose Microservice"
+          href: "contents/container/docker-compose-explained.qmd"
     - part: Repository Architecture
       chapters: 
         - "contents/repo-architect/microservice-acme-ai.qmd"

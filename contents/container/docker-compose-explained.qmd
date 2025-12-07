@@ -1,0 +1,277 @@
+---
+title: "Docker Compose for Microservice"
+---
+
+Great! Let's dive into Docker Compose for microservices. I'll explain your configuration and the concepts behind it.
+
+
+## Architecture Overview
+
+
+First, let me visualize what this Docker Compose setup creates:
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Host Machine                         │
+│                    (Your Mac M3 Pro)                    │
+│                                                         │
+│  ┌────────────────────────────────────────────────────┐ │
+│  │         Docker Network: acme-network               │ │
+│  │              (bridge driver)                       │ │
+│  │                                                    │ │
+│  │  ┌─────────────────┐      ┌──────────────────┐     │ │
+│  │  │  ai-service-1   │      │  api-gateway     │     │ │
+│  │  │ (Python/FastAPI)│◄─────┤  (.NET/ASP.NET)  │     │ │
+│  │  │                 │      │                  │     │ │
+│  │  │  Port: 8001     │      │  Port: 5124      │     │ │
+│  │  └─────────────────┘      └──────────────────┘     │ │
+│  │         ▲                         ▲                │ │
+│  └─────────┼─────────────────────────┼────────────────┘ │
+│            │                         │                  │
+│      localhost:8001            localhost:5124           │
+└────────────┼─────────────────────────┼──────────────────┘
+             │                         │
+          Your Code                 Your Code
+       (./ai-service-1)         (./AcmeApi/ApiGateway)
+```
+
+
+## Key Docker Compose Concepts
+
+
+### 1. Services Definition
+
+
+Each service represents a **containerized microservice**. Your setup has two services:
+
+- `ai-service-1`: Python FastAPI backend (AI processing)
+- `api-gateway`: .NET API Gateway (entry point, routes requests)
+
+
+### 2. Build Context
+
+
+```yaml
+build:
+  context: ./ai-service-1
+  dockerfile: Dockerfile
+```
+
+- **context**: Directory containing source code and Dockerfile
+- **dockerfile**: Instructions to build the container image
+- Docker builds the image from scratch when you run `docker-compose up --build`
+
+
+### 3. Port Mapping
+
+
+```yaml
+ports:
+  - "8001:8001"  # HOST:CONTAINER
+```
+
+**Format**: `"host_port:container_port"`
+
+```
+Your Mac          Docker Container
+   ┌───┐              ┌───┐
+   │   │─── 8001 ────►│   │ Port 8001
+   └───┘              └───┘
+```
+
+You access the service via `http://localhost:8001` from your Mac.
+
+
+### 4. Volumes (Critical for Development)
+
+
+```yaml
+volumes:
+  - ./ai-service-1:/app        # Source code mount
+  - /app/.venv                 # Anonymous volume
+  - /app/__pycache__           # Anonymous volume
+```
+
+**Volume Types Explained:**
+
+```
+┌─────────────────────────────────────────────────┐
+│ Host Machine                                    │
+│                                                 │
+│  ./ai-service-1/                                │
+│  ├── main.py          ─────┐                    │
+│  ├── requirements.txt      │                    │
+│  └── .venv/                │ (excluded)         │
+│      └── (packages)        │                    │
+└────────────────────────────┼────────────────────┘
+                             │ Bind Mount
+┌────────────────────────────┼────────────────────┐
+│ Container                  │                    │
+│                            ▼                    │
+│  /app/                                          │
+│  ├── main.py          (from host)               │
+│  ├── requirements.txt (from host)               │
+│  └── .venv/           (from container only!)    │
+│      └── (packages)                             │
+└─────────────────────────────────────────────────┘
+```
+
+**Why exclude `.venv` and `__pycache__`?**
+
+- **`.venv`**: Container has its own Python environment (possibly different OS/architecture)
+- **`__pycache__`**: Avoid conflicts between host and container bytecode
+- Your M3 Mac is ARM64, but container might be different architecture
+
+This enables **hot reload** - edit code on your Mac, changes reflect immediately in container!
+
+
+### 5. Environment Variables
+
+
+```yaml
+environment:
+  - ASPNETCORE_ENVIRONMENT=Development
+  - DownstreamServices__AiService1__BaseUrl=http://ai-service-1:8001
+```
+
+**Key insight**: `http://ai-service-1:8001`
+
+Inside the Docker network, services communicate using **container names as hostnames**:
+
+```
+api-gateway container can call:
+  http://ai-service-1:8001/predict
+  
+NOT localhost:8001 (that would be api-gateway itself!)
+```
+
+
+### 6. Networks
+
+
+```yaml
+networks:
+  acme-network:
+    driver: bridge
+```
+
+**Bridge Network**: Creates a private network where containers can discover each other by name.
+
+```
+┌──────────────────────────────────────────┐
+│  acme-network (172.18.0.0/16)            │
+│                                          │
+│  ai-service-1                            │
+│  IP: 172.18.0.2                          │
+│  Hostname: ai-service-1                  │
+│                                          │
+│  api-gateway                             │
+│  IP: 172.18.0.3                          │
+│  Hostname: api-gateway                   │
+│                                          │
+│  (Docker DNS resolves names to IPs)      │
+└──────────────────────────────────────────┘
+```
+
+
+### 7. Dependencies
+
+
+```yaml
+depends_on:
+  - ai-service-1
+```
+
+- Docker Compose starts `ai-service-1` **before** `api-gateway`
+- **Note**: Doesn't wait for service to be "ready", just "started"
+- For production, you might need health checks
+
+
+### 8. Restart Policy
+
+
+```yaml
+restart: unless-stopped
+```
+
+Container restarts automatically if it crashes, unless you explicitly stop it.
+
+
+## Request Flow Example
+
+
+Let's trace a request through your architecture:
+
+```
+1. External Client
+   │
+   │ HTTP GET http://localhost:5124/ai/predict
+   │
+   ▼
+2. Host Machine (Port 5124)
+   │
+   │ Port mapping
+   │
+   ▼
+3. api-gateway Container (Port 5124)
+   │
+   │ Internal routing logic
+   │ Uses: DownstreamServices__AiService1__BaseUrl
+   │
+   ▼
+4. Docker Network (acme-network)
+   │
+   │ DNS resolution: ai-service-1 → 172.18.0.2
+   │
+   ▼
+5. ai-service-1 Container (Port 8001)
+   │
+   │ Process request with FastAPI
+   │
+   ▼
+6. Response flows back through same path
+```
+
+
+## Common Docker Compose Commands
+
+
+```bash
+# Start all services
+docker-compose up
+
+# Start in background (detached)
+docker-compose up -d
+
+# Rebuild images and start
+docker-compose up --build
+
+# Stop all services
+docker-compose down
+
+# View logs
+docker-compose logs -f
+
+# View logs for specific service
+docker-compose logs -f ai-service-1
+
+# Execute command in running container
+docker-compose exec ai-service-1 bash
+
+# List running services
+docker-compose ps
+```
+
+
+## Advantages of This Setup
+
+
+**1. Isolation**: Each service runs independently with its own dependencies
+
+**2. Reproducibility**: Same environment everywhere (Mac, Linux, CI/CD)
+
+**3. Development Speed**: Hot reload - no need to rebuild containers for code changes
+
+**4. Service Discovery**: Services find each other by name automatically
+
+**5. Easy Scaling**: Can add more services easily
