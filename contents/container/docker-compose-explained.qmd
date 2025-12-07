@@ -2,6 +2,68 @@
 title: "Docker Compose for Microservice"
 ---
 
+
+::: {.callout-note appearance="default" collapse="false"}
+### Docker Compose
+
+```yaml
+services:
+  # AI Service 1 - Python FastAPI
+  ai-service-1:
+    build:
+      context: ./ai-service-1
+      dockerfile: Dockerfile
+    container_name: acme-ai-service-1
+    ports:
+      - "8001:8001"
+    volumes:
+      # Mount source code for hot reload
+      - ./ai-service-1:/app
+      # Exclude virtual environment from mount (use container's packages)
+      - /app/.venv
+      # Exclude Python cache
+      - /app/__pycache__
+    environment:
+      - PYTHONUNBUFFERED=1
+    networks:
+      - acme-network
+    restart: unless-stopped
+
+  # API Gateway - .NET ASP.NET Core
+  api-gateway:
+    build:
+      context: ./AcmeApi/ApiGateway
+      dockerfile: Dockerfile
+    container_name: acme-api-gateway
+    ports:
+      - "5124:5124"
+    volumes:
+      # Mount source code for hot reload
+      - ./AcmeApi/ApiGateway:/app
+      # Exclude bin and obj directories (use container's build artifacts)
+      - /app/bin
+      - /app/obj
+    environment:
+      # Override service discovery to use Docker container name
+      - ASPNETCORE_ENVIRONMENT=Development
+      - DownstreamServices__AiService1__BaseUrl=http://ai-service-1:8001
+      - ASPNETCORE_URLS=http://+:5124
+      # Disable HTTPS redirect in Docker
+      - ASPNETCORE_HTTPS_PORT=
+    networks:
+      - acme-network
+    depends_on:
+      - ai-service-1
+    restart: unless-stopped
+
+networks:
+  acme-network:
+    driver: bridge
+
+```
+
+:::
+
 Great! Let's dive into Docker Compose for microservices. I'll explain your configuration and the concepts behind it.
 
 
