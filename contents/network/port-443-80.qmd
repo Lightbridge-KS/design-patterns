@@ -1,0 +1,196 @@
+---
+title: "What Listens on HTTP (80) and HTTPS (443)?"
+---
+
+
+## The Short Answer
+
+**Web servers** listen on these ports. Common examples:
+
+| Software | Type | Common Use |
+|----------|------|------------|
+| **Nginx** | Web server / Reverse proxy | Most popular, high performance |
+| **Apache** | Web server | Traditional, feature-rich |
+| **Caddy** | Web server | Auto HTTPS, simple config |
+| **IIS** | Web server | Windows environments |
+| **Traefik** | Reverse proxy | Container/microservices |
+
+
+## Basic Architecture
+
+```
+┌──────────────┐        ┌─────────────────────────────────────────────┐
+│   Browser    │        │              SERVER (10.6.23.50)            │
+│              │        │                                             │
+│  Chrome      │        │   ┌─────────────────────────────────────┐   │
+│  Firefox     │        │   │     WEB SERVER (Nginx/Apache)       │   │
+│  Safari      │        │   │                                     │   │
+│              │        │   │   Listening on:                     │   │
+│   Port:      │        │   │     - Port 80  (HTTP)               │   │
+│   51432 ─────┼────────┼──►│     - Port 443 (HTTPS) ◄── TLS      │   │
+│ (ephemeral)  │        │   │                                     │   │
+│              │        │   └─────────────────────────────────────┘   │
+└──────────────┘        │                                             │
+                        └─────────────────────────────────────────────┘
+```
+
+
+## Real-World Setup: Reverse Proxy Pattern
+
+In practice, the web server often acts as a **reverse proxy** — it receives requests and forwards them to backend applications:
+
+```
+                                        SERVER
+┌─────────┐       ┌────────────────────────────────────────────────────────────┐
+│ Browser │       │                                                            │
+│         │       │  ┌──────────────────────┐      ┌────────────────────────┐  │
+│         │       │  │   NGINX (port 443)   │      │   Backend Apps         │  │
+│         │       │  │                      │      │                        │  │
+│ Request │       │  │  /api/*  ──────────────────►│  Flask API (port 5000) │  │
+│ to :443 ├──────►│  │                      │      │                        │  │
+│         │       │  │  /orthanc/* ────────────────►  Orthanc (port 8042)   │  │
+│         │       │  │                      │      │                        │  │
+│         │       │  │  /pacs-viewer/* ────────────►  OHIF (port 3000)      │  │
+│         │       │  │                      │      │                        │  │
+│         │       │  │  /* (default) ──────────────►  Static files          │  │
+│         │       │  │                      │      │                        │  │
+│         │       │  └──────────────────────┘      └────────────────────────┘  │
+│         │       │         ▲                                                  │
+│         │       │         │                                                  │
+│         │       │    Only Nginx exposed                                      │
+│         │       │    to outside world!                                       │
+└─────────┘       └────────────────────────────────────────────────────────────┘
+
+External ports: 80, 443 only
+Internal ports: 5000, 8042, 3000, etc. (hidden from outside)
+```
+
+
+## Why This Pattern?
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    BENEFITS OF REVERSE PROXY                        │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  1. SINGLE ENTRY POINT                                              │
+│     - Only ports 80/443 exposed                                     │
+│     - Fewer firewall rules needed                                   │
+│     - Backend ports stay hidden                                     │
+│                                                                     │
+│  2. TLS TERMINATION                                                 │
+│     - Nginx handles all HTTPS encryption                            │
+│     - Backend apps use simple HTTP internally                       │
+│     - One place to manage SSL certificates                          │
+│                                                                     │
+│  3. LOAD BALANCING                                                  │
+│     - Distribute traffic across multiple backend servers            │
+│                                                                     │
+│  4. SECURITY                                                        │
+│     - Hide internal architecture                                    │
+│     - Add rate limiting, IP filtering                               │
+│     - WAF (Web Application Firewall) capabilities                   │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+
+## Concrete Example: Hospital Radiology Web Portal
+
+```
+                        FRONT ZONE                      BACK ZONE
+                        10.6.34.x                       10.6.23.x
+                                         
+┌──────────────┐       ┌──────────────────────────────────────────────────────┐
+│  Radiologist │       │                                                      │
+│  Workstation │       │    Web Server (10.6.23.50)                           │
+│              │       │    ┌──────────────────────────────────────────────┐  │
+│  Browser     │       │    │              NGINX                           │  │
+│  ┌────────┐  │       │    │                                              │  │
+│  │ HTTPS  │  │       │    │   :443 ◄── Listening (TLS enabled)           │  │
+│  │ :443   │──┼───────┼───►│                                              │  │
+│  └────────┘  │       │    │   Routes:                                    │  │
+│              │       │    │   ┌──────────────────────────────────────┐   │  │
+│              │       │    │   │ /viewer/*  → localhost:3000 (OHIF)   │   │  │
+│              │       │    │   │ /dicom/*   → localhost:8042 (Orthanc)│   │  │
+│              │       │    │   │ /api/*     → localhost:5000 (AI API) │   │  │
+│              │       │    │   │ /report/*  → localhost:8080 (Report) │   │  │
+│              │       │    │   └──────────────────────────────────────┘   │  │
+│              │       │    └──────────────────────────────────────────────┘  │
+│              │       │                         │                            │
+│              │       │         ┌───────────────┼───────────────┐            │
+│              │       │         ▼               ▼               ▼            │
+│              │       │    ┌─────────┐    ┌──────────┐    ┌──────────┐       │
+│              │       │    │  OHIF   │    │ Orthanc  │    │  AI API  │       │
+│              │       │    │  :3000  │    │  :8042   │    │  :5000   │       │
+│              │       │    │ (React) │    │ (DICOM)  │    │ (Flask)  │       │
+│              │       │    └─────────┘    └──────────┘    └──────────┘       │
+│              │       │                                                      │
+└──────────────┘       └──────────────────────────────────────────────────────┘
+
+Firewall only needs to allow:
+  ALLOW  src=10.6.34.0/24  dst=10.6.23.50  port=443  proto=TCP
+  
+All internal ports (3000, 8042, 5000) stay hidden!
+```
+
+
+## What Actually Happens in a Request?
+
+```
+1. Browser: GET https://radiology.hospital.com/viewer/study/12345
+
+2. DNS resolves to: 10.6.23.50
+
+3. TCP connection: Browser:51432 → Server:443
+
+4. TLS Handshake (encryption established)
+
+5. HTTP Request sent (encrypted):
+   ┌────────────────────────────────────────┐
+   │ GET /viewer/study/12345 HTTP/1.1       │
+   │ Host: radiology.hospital.com           │
+   │ Cookie: session=abc123                 │
+   └────────────────────────────────────────┘
+
+6. Nginx receives on :443, decrypts, checks route:
+   "/viewer/*" matches → forward to localhost:3000
+
+7. Nginx forwards to OHIF (internal HTTP, no TLS):
+   ┌────────────────────────────────────────┐
+   │ GET /viewer/study/12345 HTTP/1.1       │
+   │ X-Forwarded-For: 10.6.34.100           │
+   │ X-Forwarded-Proto: https               │
+   └────────────────────────────────────────┘
+
+8. OHIF responds → Nginx → Browser (re-encrypted)
+```
+
+
+## Quick Comparison: Direct vs Reverse Proxy
+
+```
+DIRECT EXPOSURE (Bad for production)          REVERSE PROXY (Recommended)
+─────────────────────────────────────         ─────────────────────────────────
+                                              
+Firewall must allow:                          Firewall only allows:
+  - Port 3000 (OHIF)                            - Port 443 (Nginx)
+  - Port 8042 (Orthanc)                       
+  - Port 5000 (API)                           Internal ports hidden!
+  - Port 8080 (Reports)                       
+                                              
+Each app needs TLS certificate                One TLS certificate on Nginx
+                                              
+Complex firewall rules                        Simple firewall rules
+```
+
+
+## Summary
+
+| Term | Meaning |
+|------|---------|
+| **Port 80/443** | Where the web server (Nginx/Apache) listens |
+| **Web Server** | Software that handles HTTP/HTTPS requests |
+| **Reverse Proxy** | Web server forwarding requests to backend apps |
+| **TLS Termination** | Decrypting HTTPS at the proxy level |
+| **Backend Apps** | Internal services on various ports (hidden) |
