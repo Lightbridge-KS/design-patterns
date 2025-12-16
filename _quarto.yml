@@ -72,6 +72,8 @@ book:
           href: "contents/network/port-in-and-out.qmd"
         - text: Port (443, 80)
           href: "contents/network/port-443-80.qmd"
+        - text: Out vs Inbound CNT
+          href: "contents/network/out-vs-inboud-connection.qmd"
     - part: Container
       chapters: 
         - text: "Docker Compose Microservice"
