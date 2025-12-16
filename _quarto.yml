@@ -66,6 +66,10 @@ book:
           href: "contents/network/subnet-gateway.qmd"
         - text: "Gatway Routing to Service?"
           href: "contents/network/gateway-to-service.qmd"
+        - text: Firewall - How it work
+          href: "contents/network/firewall-how-it-work.qmd"
+        - text: Port (in & out)
+          href: "contents/network/port-in-and-out.qmd"
     - part: Container
       chapters: 
         - text: "Docker Compose Microservice"

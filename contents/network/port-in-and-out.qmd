@@ -1,0 +1,142 @@
+---
+title: "Ports: Listening (Incoming) vs. Outgoing"
+---
+
+This is a fundamental concept that often causes confusion.
+
+## The Short Answer
+
+**When we say "Orthanc uses port 4242", we mean it's LISTENING on port 4242 for incoming connections.**
+
+The port number identifies the **service/server side** — the door that clients knock on.
+
+
+## Client-Server Port Mechanics
+
+```
+┌─────────────────────────┐                    ┌─────────────────────────┐
+│      CLIENT             │                    │       SERVER            │
+│   (PACS Viewer)         │                    │      (Orthanc)          │
+│                         │                    │                         │
+│  Ephemeral Port         │                    │    Listening Port       │
+│  (random, temporary)    │                    │    (fixed, well-known)  │
+│                         │                    │                         │
+│    Source: 52431  ──────┼───── connects to ──┼──►  Destination: 4242   │
+│                         │                    │                         │
+└─────────────────────────┘                    └─────────────────────────┘
+
+The CLIENT gets a random high port (ephemeral)
+The SERVER listens on a fixed known port (4242)
+```
+
+
+## Real Example: Querying Orthanc DICOM Server
+
+```
+Step 1: Orthanc starts and LISTENS on port 4242
+        ┌──────────────────────────────────┐
+        │  Orthanc Server (10.6.23.50)     │
+        │                                  │
+        │  "I'm listening on port 4242..." │
+        │       ┌──────┐                   │
+        │       │ 4242 │ ◄── OPEN, waiting │
+        │       └──────┘                   │
+        └──────────────────────────────────┘
+
+Step 2: PACS Viewer wants to query images
+        ┌──────────────────────────────────┐
+        │  PACS Viewer (10.6.34.100)       │
+        │                                  │
+        │  OS assigns ephemeral port 52431 │
+        │       ┌───────┐                  │
+        │       │ 52431 │ ◄── temporary    │
+        │       └───────┘                  │
+        └──────────────────────────────────┘
+
+Step 3: Connection established
+        
+        PACS Viewer                              Orthanc
+        10.6.34.100                              10.6.23.50
+             │                                       │
+             │  ┌─────────────────────────────────┐  │
+             │  │ SRC: 10.6.34.100:52431          │  │
+        52431├──┤ DST: 10.6.23.50:4242            ├──┤4242
+             │  │ "C-FIND Request (Query images)" │  │
+             │  └─────────────────────────────────┘  │
+             │                                       │
+             │  ┌─────────────────────────────────┐  │
+             │  │ SRC: 10.6.23.50:4242            │  │
+        52431├◄─┤ DST: 10.6.34.100:52431          ├──┤4242
+             │  │ "C-FIND Response (image list)"  │  │
+             │  └─────────────────────────────────┘  │
+             │                                       │
+
+        Notice: Response REVERSES the src/dst ports!
+```
+
+
+## Key Insight: Asymmetric Port Usage
+
+| Role | Port Type | Port Number | Lifetime |
+|------|-----------|-------------|----------|
+| **Server** (Orthanc) | Listening port | Fixed (4242) | Permanent while service runs |
+| **Client** (Viewer) | Ephemeral port | Random (49152-65535) | Temporary per connection |
+
+
+## What About When Orthanc SENDS Data?
+
+When Orthanc initiates a connection (e.g., C-STORE to another PACS), the roles flip:
+
+```
+Scenario: Orthanc pushes images to another PACS server
+
+        Orthanc (as CLIENT)                    Remote PACS (as SERVER)
+        10.6.23.50                              10.6.23.60
+             │                                       │
+             │  ┌─────────────────────────────────┐  │
+             │  │ SRC: 10.6.23.50:48721  ◄─ ephemeral (random)
+        48721├──┤ DST: 10.6.23.60:104    ◄─ DICOM standard port
+             │  │ "C-STORE (sending images)"      │  │
+             │  └─────────────────────────────────┘  │
+             │                                       │104
+
+        Now Orthanc uses a RANDOM ephemeral port as source
+        And connects to port 104 (standard DICOM) on remote server
+```
+
+
+## Summary: Port Terminology
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│   "Orthanc runs on port 4242"                                   │
+│                    │                                            │
+│                    ▼                                            │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │  Orthanc LISTENS on port 4242 for INCOMING connections  │   │
+│   └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│   When Orthanc connects OUT to other services:                  │
+│   ┌─────────────────────────────────────────────────────────┐   │
+│   │  Orthanc uses a RANDOM ephemeral port as SOURCE         │   │
+│   │  and connects to the TARGET service's listening port    │   │
+│   └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+
+## Firewall Rule Implications
+
+This is why firewall rules focus on **destination ports**:
+
+```
+# Allow DICOM queries TO Orthanc (incoming to Orthanc)
+ALLOW  src=10.6.34.0/24  dst=10.6.23.50  dst_port=4242  proto=TCP
+
+# The source port (ephemeral) is usually not specified
+# because it's random and unpredictable
+```
+
+For **stateful firewalls**, you only need to allow the initial connection — the return traffic is automatically permitted because the firewall tracks the connection state.

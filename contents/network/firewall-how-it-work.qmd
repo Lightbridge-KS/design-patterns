@@ -1,0 +1,212 @@
+---
+title: "How Firewalls Work with Ports and Services"
+---
+
+Let me explain how firewalls control traffic flow between your hospital's network zones.
+
+
+## The Basic Concept
+
+A firewall acts as a **gatekeeper** that inspects every network packet and decides whether to **ALLOW** or **DENY** it based on a set of rules.
+
+```
+                        ┌─────────────────────────────────┐
+   Incoming Packet      │           FIREWALL              │
+  ─────────────────────►│                                 │
+   (src IP, dst IP,     │  ┌─────────────────────────┐    │
+    src port, dst port, │  │       RULE TABLE        │    │
+    protocol)           │  │                         │    │
+                        │  │  Rule 1: ALLOW if ...   │    │──► ALLOW ──► Destination
+                        │  │  Rule 2: DENY  if ...   │    │
+                        │  │  Rule 3: ALLOW if ...   │    │──► DENY  ──► Drop/Reject
+                        │  │  ...                    │    │
+                        │  │  Default: DENY ALL      │    │
+                        │  └─────────────────────────┘    │
+                        └─────────────────────────────────┘
+```
+
+
+## What a Firewall Inspects (The "5-Tuple")
+
+Every network packet contains metadata that the firewall examines:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                      NETWORK PACKET                          │
+├──────────────────────────────────────────────────────────────┤
+│  1. Source IP Address      │  10.6.34.100  (who's sending)   │
+│  2. Destination IP Address │  10.6.23.50   (who's receiving) │
+│  3. Source Port            │  52431        (sender's port)   │
+│  4. Destination Port       │  443          (service port)    │
+│  5. Protocol               │  TCP          (TCP/UDP/ICMP)    │
+└──────────────────────────────────────────────────────────────┘
+```
+
+
+## How Ports Identify Services
+
+**Ports are like apartment numbers in a building.** The IP address is the building address, and the port number tells you which "door" (service) to knock on.
+
+```
+Server: 10.6.23.50
+┌─────────────────────────────────────────┐
+│                                         │
+│   Port 22   ──► SSH (Remote Access)     │
+│   Port 80   ──► HTTP (Web Server)       │
+│   Port 443  ──► HTTPS (Secure Web)      │
+│   Port 3306 ──► MySQL Database          │
+│   Port 5432 ──► PostgreSQL Database     │
+│   Port 8080 ──► Custom App / PACS?      │
+│   Port 4242 ──► DICOM (Orthanc default) │
+│   Port 104  ──► DICOM (Standard)        │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+**Common Port Ranges:**
+- `0-1023`: Well-known ports (HTTP, HTTPS, SSH, etc.)
+- `1024-49151`: Registered ports (applications)
+- `49152-65535`: Dynamic/ephemeral ports (client-side)
+
+
+## Firewall Rules: The Decision Logic
+
+Rules are evaluated **top-to-bottom** until a match is found:
+
+```
+┌────┬────────────┬──────────────┬───────────┬──────────┬────────┐
+│ #  │ Source IP  │ Dest IP      │ Dest Port │ Protocol │ Action │
+├────┼────────────┼──────────────┼───────────┼──────────┼────────┤
+│ 1  │ ANY        │ 10.6.23.50   │ 443       │ TCP      │ ALLOW  │
+│ 2  │ 10.6.34.x  │ 10.6.23.x    │ 3306      │ TCP      │ ALLOW  │
+│ 3  │ ANY        │ 10.6.23.x    │ 22        │ TCP      │ DENY   │
+│ 4  │ 10.6.34.10 │ 10.6.23.x    │ 22        │ TCP      │ ALLOW  │  ← Never reached!
+│ ...│            │              │           │          │        │
+│ 99 │ ANY        │ ANY          │ ANY       │ ANY      │ DENY   │  ← Default deny
+└────┴────────────┴──────────────┴───────────┴──────────┴────────┘
+                        ↑
+              Rule 3 blocks ALL SSH before Rule 4 can allow it
+              (Order matters!)
+```
+
+
+## Your Hospital Network Architecture
+
+```
+                            INTERNET
+                                │
+                                ▼
+                    ┌────────────────────┐
+                    │  External Firewall │
+                    └─────────┬──────────┘
+                              │
+              ┌───────────────┴───────────────┐
+              │              DMZ              │
+              │   (Public-facing services)    │
+              │   - Web Portal                │
+              │   - VPN Gateway               │
+              └───────────────┬───────────────┘
+                              │
+                    ┌─────────┴──────────┐
+                    │  Internal Firewall │
+                    └─────────┬──────────┘
+                              │
+         ┌────────────────────┴────────────────────┐
+         │                                         │
+         ▼                                         ▼
+┌─────────────────────┐               ┌─────────────────────┐
+│   FRONT ZONE        │               │    BACK ZONE        │
+│   10.6.34.x         │               │    10.6.23.x        │
+│                     │    Firewall   │                     │
+│ - Workstations      │◄─────────────►│ - Database Servers  │
+│ - PACS Viewers      │   (filtered)  │ - PACS Storage      │
+│ - Radiology AI App  │               │ - Sensitive Data    │
+│                     │               │ - AI Training Data  │
+└─────────────────────┘               └─────────────────────┘
+```
+
+
+## Traffic Flow Example
+
+Let's say a workstation in **Front** wants to query a database in **Back**:
+
+```
+Step 1: Workstation creates packet
+┌─────────────────────────────────────┐
+│ From: 10.6.34.100:52431             │
+│ To:   10.6.23.50:5432 (PostgreSQL)  │
+│ Protocol: TCP                       │
+└─────────────────────────────────────┘
+                │
+                ▼
+Step 2: Packet reaches firewall between Front & Back
+                │
+                ▼
+Step 3: Firewall checks rules
+        ┌─────────────────────────────────────────┐
+        │ Rule: 10.6.34.x → 10.6.23.50:5432 TCP   │
+        │ Action: ALLOW ✓                         │
+        └─────────────────────────────────────────┘
+                │
+                ▼
+Step 4: Packet delivered to database server
+
+Step 5: Response packet (stateful firewall auto-allows return traffic)
+        10.6.23.50:5432 → 10.6.34.100:52431 ✓
+```
+
+
+## Stateful vs Stateless Firewalls
+
+**Stateless Firewall:** Checks each packet independently
+
+**Stateful Firewall (modern):** Tracks connection state
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                    CONNECTION STATE TABLE                        │
+├──────────────────────────────────────────────────────────────────┤
+│ Source            │ Destination      │ State       │ Timeout     │
+├───────────────────┼──────────────────┼─────────────┼─────────────┤
+│ 10.6.34.100:52431 │ 10.6.23.50:5432  │ ESTABLISHED │ 3600s       │
+│ 10.6.34.101:48210 │ 10.6.23.50:443   │ ESTABLISHED │ 300s        │
+│ 10.6.34.102:51002 │ 10.6.23.51:22    │ TIME_WAIT   │ 30s         │
+└───────────────────┴──────────────────┴─────────────┴─────────────┘
+
+Benefits:
+- Return traffic automatically allowed (no explicit rule needed)
+- More secure (tracks legitimate connections)
+- Better performance (fewer rules to check)
+```
+
+
+## Common Firewall Rule Patterns in Healthcare
+
+```
+# Allow DICOM traffic from Front to PACS in Back
+ALLOW  src=10.6.34.0/24  dst=10.6.23.50  port=104,4242  proto=TCP
+
+# Allow HTTPS to web services
+ALLOW  src=10.6.34.0/24  dst=10.6.23.0/24  port=443  proto=TCP
+
+# Block direct database access from DMZ (security!)
+DENY   src=DMZ           dst=10.6.23.0/24  port=3306,5432  proto=TCP
+
+# Allow specific admin workstation SSH access
+ALLOW  src=10.6.34.10    dst=10.6.23.0/24  port=22  proto=TCP
+
+# Default deny everything else
+DENY   src=ANY           dst=ANY           port=ANY  proto=ANY
+```
+
+
+## Key Takeaways
+
+| Concept | Explanation |
+|---------|-------------|
+| **Port** | Identifies a specific service on a server |
+| **Firewall Rule** | Defines what traffic is allowed/denied |
+| **5-Tuple** | Source IP, Dest IP, Source Port, Dest Port, Protocol |
+| **Rule Order** | First matching rule wins |
+| **Stateful** | Tracks connections, auto-allows legitimate responses |
+| **Default Deny** | Best practice - block everything not explicitly allowed |
