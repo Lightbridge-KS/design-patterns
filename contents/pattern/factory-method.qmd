@@ -1,0 +1,240 @@
+---
+title: "Factory Method Pattern"
+---
+
+
+## What is Factory Method?
+
+Factory Method is a **creational design pattern** that provides an interface for creating objects in a superclass, but allows subclasses to alter the type of objects that will be created.
+
+The key idea: **"Define an interface for creating an object, but let subclasses decide which class to instantiate."**
+
+
+## Structure (from your diagram)
+
+![Factory Method Pattern](../../img/pattern/FactoryMethod.png){#fig-factory-method width="100%"}
+
+
+**Legend:**
+
+- ➊ Product Interface - defines what products can do
+- ➋ Concrete Products - actual implementations  
+- ➌ Creator - declares factory method (abstract)
+- ➍ Concrete Creators - implement factory method, decide WHICH product to create
+
+
+## Python Example: Medical Image Exporter
+
+Here's a practical example relevant to radiology—exporting medical images in different formats:
+
+```python
+from abc import ABC, abstractmethod
+
+
+# ═══════════════════════════════════════════════════════════════
+# PRODUCT INTERFACE ➊
+# ═══════════════════════════════════════════════════════════════
+
+class ImageExporter(ABC):
+    """Abstract Product: defines interface for all exporters."""
+    
+    @abstractmethod
+    def export(self, image_data: bytes, filename: str) -> str:
+        """Export image data to a file."""
+        pass
+    
+    @abstractmethod
+    def get_extension(self) -> str:
+        """Return file extension for this format."""
+        pass
+
+
+# ═══════════════════════════════════════════════════════════════
+# CONCRETE PRODUCTS ➋
+# ═══════════════════════════════════════════════════════════════
+
+class DicomExporter(ImageExporter):
+    """Concrete Product: exports to DICOM format."""
+    
+    def export(self, image_data: bytes, filename: str) -> str:
+        filepath = f"{filename}.{self.get_extension()}"
+        print(f"Exporting DICOM with metadata tags to: {filepath}")
+        # Actual DICOM writing logic here...
+        return filepath
+    
+    def get_extension(self) -> str:
+        return "dcm"
+
+
+class NiftiExporter(ImageExporter):
+    """Concrete Product: exports to NIfTI format."""
+    
+    def export(self, image_data: bytes, filename: str) -> str:
+        filepath = f"{filename}.{self.get_extension()}"
+        print(f"Exporting NIfTI with affine matrix to: {filepath}")
+        # Actual NIfTI writing logic here...
+        return filepath
+    
+    def get_extension(self) -> str:
+        return "nii.gz"
+
+
+class PngExporter(ImageExporter):
+    """Concrete Product: exports to PNG format."""
+    
+    def export(self, image_data: bytes, filename: str) -> str:
+        filepath = f"{filename}.{self.get_extension()}"
+        print(f"Exporting PNG (8-bit, window/level applied) to: {filepath}")
+        # Actual PNG writing logic here...
+        return filepath
+    
+    def get_extension(self) -> str:
+        return "png"
+
+
+# ═══════════════════════════════════════════════════════════════
+# CREATOR (ABSTRACT) ➌
+# ═══════════════════════════════════════════════════════════════
+
+class ImageProcessor(ABC):
+    """
+    Abstract Creator: declares the factory method.
+    
+    Note: Creator's primary responsibility is NOT creating products.
+    It contains core business logic that USES products.
+    """
+    
+    @abstractmethod
+    def create_exporter(self) -> ImageExporter:
+        """
+        Factory Method: subclasses decide which exporter to create.
+        """
+        pass
+    
+    def process_and_export(self, image_data: bytes, filename: str) -> str:
+        """
+        Core business logic that uses the factory method.
+        This method doesn't know which concrete exporter it's using!
+        """
+        # Step 1: Pre-processing (shared logic)
+        print("Preprocessing image...")
+        
+        # Step 2: Get exporter via factory method
+        exporter = self.create_exporter()  # <-- Factory Method call
+        
+        # Step 3: Export using the product
+        result = exporter.export(image_data, filename)
+        
+        # Step 4: Post-processing (shared logic)
+        print(f"Export complete: {result}\n")
+        return result
+
+
+# ═══════════════════════════════════════════════════════════════
+# CONCRETE CREATORS ➍
+# ═══════════════════════════════════════════════════════════════
+
+class DicomProcessor(ImageProcessor):
+    """Concrete Creator: creates DICOM exporter."""
+    
+    def create_exporter(self) -> ImageExporter:
+        return DicomExporter()
+
+
+class NiftiProcessor(ImageProcessor):
+    """Concrete Creator: creates NIfTI exporter."""
+    
+    def create_exporter(self) -> ImageExporter:
+        return NiftiExporter()
+
+
+class PngProcessor(ImageProcessor):
+    """Concrete Creator: creates PNG exporter."""
+    
+    def create_exporter(self) -> ImageExporter:
+        return PngExporter()
+
+
+# ═══════════════════════════════════════════════════════════════
+# CLIENT CODE
+# ═══════════════════════════════════════════════════════════════
+
+def client_code(processor: ImageProcessor, image_data: bytes, filename: str):
+    """
+    Client works with any processor via the abstract interface.
+    It doesn't know which concrete product is being used!
+    """
+    processor.process_and_export(image_data, filename)
+
+
+# Usage
+if __name__ == "__main__":
+    dummy_image = b"image_bytes_here"
+    
+    # Client doesn't know about concrete exporters
+    client_code(DicomProcessor(), dummy_image, "brain_mri")
+    client_code(NiftiProcessor(), dummy_image, "brain_mri") 
+    client_code(PngProcessor(), dummy_image, "brain_mri_slice")
+```
+
+**Output:**
+```
+Preprocessing image...
+Exporting DICOM with metadata tags to: brain_mri.dcm
+Export complete: brain_mri.dcm
+
+Preprocessing image...
+Exporting NIfTI with affine matrix to: brain_mri.nii.gz
+Export complete: brain_mri.nii.gz
+
+Preprocessing image...
+Exporting PNG (8-bit, window/level applied) to: brain_mri_slice.png
+Export complete: brain_mri_slice.png
+```
+
+
+## When to Use Factory Method?
+
+```
+Use Factory Method when:
+
+┌─────────────────────────────────────────────────────────────┐
+│  ✓  You don't know exact types of objects beforehand        │
+│  ✓  You want to let subclasses specify which objects        │
+│     to create                                               │
+│  ✓  You want to localize the knowledge of which class       │
+│     gets created                                            │
+│  ✓  You want to decouple client code from concrete classes  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+
+## Factory Method vs Simple Factory
+
+```
+Simple Factory (not a pattern, just a technique):
+┌────────────────────────────────────────┐
+│  class SimpleFactory:                  │
+│      def create(type):                 │
+│          if type == "A": return A()    │
+│          if type == "B": return B()    │  <-- All logic in ONE place
+│                                        │      (violates Open/Closed)
+└────────────────────────────────────────┘
+
+Factory Method Pattern:
+┌────────────────────────────────────────┐
+│  class CreatorA:                       │
+│      def create(): return A()          │
+│                                        │
+│  class CreatorB:                       │  <-- Each subclass handles
+│      def create(): return B()          │      its own creation
+│                                        │      (Open for extension)
+└────────────────────────────────────────┘
+```
+
+
+## Key Benefits
+
+1. **Open/Closed Principle**: Add new product types without modifying existing code
+2. **Single Responsibility**: Product creation is in one place per type
+3. **Loose Coupling**: Client code depends on abstractions, not concrete classes

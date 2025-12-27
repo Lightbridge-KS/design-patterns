@@ -24,6 +24,8 @@ book:
        - "contents/DI/DI_decorator-pattern.qmd"
        - "contents/DI/DI_decorator-cs-vs-py.qmd"
        - "contents/pattern/template-method.qmd"
+       - text: Factory Method
+         href: "contents/pattern/factory-method.qmd"
     - part: Transport
       chapters: 
         - "contents/pattern/dto-explained.qmd"
