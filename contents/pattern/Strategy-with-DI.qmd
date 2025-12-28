@@ -1,0 +1,293 @@
+---
+title: "Strategy Pattern and Dependency Injection"
+---
+
+The Strategy Pattern **inherently uses Dependency Injection (DI)** as its mechanism for providing the algorithm to the Context.
+
+
+## How DI Appears in Strategy Pattern
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│              DEPENDENCY INJECTION IN STRATEGY PATTERN               │
+└─────────────────────────────────────────────────────────────────────┘
+
+  The Context DOES NOT create its own strategy.
+  Instead, it RECEIVES the strategy from outside (injected).
+
+                    ┌──────────────────┐
+                    │     Client       │
+                    └────────┬─────────┘
+                             │
+                             │ creates & injects
+                             ▼
+  ┌─────────────────────────────────────────────────────────┐
+  │                                                         │
+  │   strategy = LossyCompression()  ◄── Client creates     │
+  │                     │                                   │
+  │                     ▼                                   │
+  │   context.set_strategy(strategy) ◄── Client injects     │
+  │                                                         │
+  └─────────────────────────────────────────────────────────┘
+                             │
+                             ▼
+                    ┌──────────────────┐
+                    │     Context      │
+                    ├──────────────────┤
+                    │ - strategy ────────────▶ Just USES it
+                    │                  │       (doesn't create)
+                    └──────────────────┘
+```
+
+
+## Two Common DI Approaches in Strategy
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                    1. SETTER INJECTION                              │
+│                    (shown in your diagram)                          │
+└─────────────────────────────────────────────────────────────────────┘
+
+    class Context:
+        def __init__(self):
+            self._strategy = None        # No strategy yet
+        
+        def set_strategy(self, strategy):   # ◄── Inject later
+            self._strategy = strategy
+
+    # Usage:
+    context = Context()
+    context.set_strategy(SomeStrategy())    # Inject via method
+    context.set_strategy(OtherStrategy())   # Can swap anytime!
+
+    ✅ Pros: Can change strategy at runtime
+    ❌ Cons: Object may be in invalid state (no strategy set)
+
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                    2. CONSTRUCTOR INJECTION                         │
+│                    (alternative approach)                           │
+└─────────────────────────────────────────────────────────────────────┘
+
+    class Context:
+        def __init__(self, strategy: Strategy):  # ◄── Inject at creation
+            self._strategy = strategy
+
+    # Usage:
+    context = Context(SomeStrategy())    # Must provide strategy upfront
+
+    ✅ Pros: Object always valid, clear dependencies
+    ❌ Cons: Need new Context to change strategy (or add setter too)
+```
+
+
+## Python Example: Both Injection Types
+
+```python
+from abc import ABC, abstractmethod
+
+
+# Strategy Interface
+class PaymentStrategy(ABC):
+    @abstractmethod
+    def pay(self, amount: float) -> None:
+        pass
+
+
+# Concrete Strategies
+class CreditCardPayment(PaymentStrategy):
+    def pay(self, amount: float) -> None:
+        print(f"💳 Paid ฿{amount:,.2f} via Credit Card")
+
+
+class QRPayment(PaymentStrategy):
+    def pay(self, amount: float) -> None:
+        print(f"📱 Paid ฿{amount:,.2f} via PromptPay QR")
+
+
+class CashPayment(PaymentStrategy):
+    def pay(self, amount: float) -> None:
+        print(f"💵 Paid ฿{amount:,.2f} in Cash")
+
+
+# ═══════════════════════════════════════════════════════════════
+# CONTEXT WITH CONSTRUCTOR INJECTION
+# ═══════════════════════════════════════════════════════════════
+class PaymentProcessorV1:
+    """Strategy injected via constructor."""
+    
+    def __init__(self, strategy: PaymentStrategy):
+        self._strategy = strategy  # Injected at construction
+    
+    def checkout(self, amount: float) -> None:
+        print(f"Processing payment of ฿{amount:,.2f}...")
+        self._strategy.pay(amount)
+
+
+# ═══════════════════════════════════════════════════════════════
+# CONTEXT WITH SETTER INJECTION
+# ═══════════════════════════════════════════════════════════════
+class PaymentProcessorV2:
+    """Strategy injected via setter method."""
+    
+    def __init__(self):
+        self._strategy: PaymentStrategy | None = None
+    
+    def set_strategy(self, strategy: PaymentStrategy) -> None:
+        self._strategy = strategy  # Injected via setter
+    
+    def checkout(self, amount: float) -> None:
+        if self._strategy is None:
+            raise ValueError("Payment strategy not set!")
+        print(f"Processing payment of ฿{amount:,.2f}...")
+        self._strategy.pay(amount)
+
+
+# ═══════════════════════════════════════════════════════════════
+# CONTEXT WITH BOTH (Most Flexible)
+# ═══════════════════════════════════════════════════════════════
+class PaymentProcessorV3:
+    """Strategy injected via constructor with optional setter."""
+    
+    def __init__(self, strategy: PaymentStrategy):
+        self._strategy = strategy
+    
+    def set_strategy(self, strategy: PaymentStrategy) -> None:
+        self._strategy = strategy  # Can change later if needed
+    
+    def checkout(self, amount: float) -> None:
+        print(f"Processing payment of ฿{amount:,.2f}...")
+        self._strategy.pay(amount)
+
+
+# ═══════════════════════════════════════════════════════════════
+# USAGE EXAMPLES
+# ═══════════════════════════════════════════════════════════════
+def main():
+    print("=" * 50)
+    print("V1: Constructor Injection")
+    print("=" * 50)
+    
+    processor1 = PaymentProcessorV1(CreditCardPayment())
+    processor1.checkout(1500.00)
+    # To change strategy, need new instance:
+    processor1_new = PaymentProcessorV1(QRPayment())
+    processor1_new.checkout(750.00)
+    
+    print("\n" + "=" * 50)
+    print("V2: Setter Injection")
+    print("=" * 50)
+    
+    processor2 = PaymentProcessorV2()
+    processor2.set_strategy(QRPayment())
+    processor2.checkout(300.00)
+    processor2.set_strategy(CashPayment())  # Swap at runtime
+    processor2.checkout(50.00)
+    
+    print("\n" + "=" * 50)
+    print("V3: Both (Constructor + Setter)")
+    print("=" * 50)
+    
+    processor3 = PaymentProcessorV3(CreditCardPayment())
+    processor3.checkout(2000.00)
+    processor3.set_strategy(QRPayment())  # Can still swap
+    processor3.checkout(500.00)
+
+
+if __name__ == "__main__":
+    main()
+```
+
+
+## Output
+
+```
+==================================================
+V1: Constructor Injection
+==================================================
+Processing payment of ฿1,500.00...
+💳 Paid ฿1,500.00 via Credit Card
+Processing payment of ฿750.00...
+📱 Paid ฿750.00 via PromptPay QR
+
+==================================================
+V2: Setter Injection
+==================================================
+Processing payment of ฿300.00...
+📱 Paid ฿300.00 via PromptPay QR
+Processing payment of ฿50.00...
+💵 Paid ฿50.00 in Cash
+
+==================================================
+V3: Both (Constructor + Setter)
+==================================================
+Processing payment of ฿2,000.00...
+💳 Paid ฿2,000.00 via Credit Card
+Processing payment of ฿500.00...
+📱 Paid ฿500.00 via PromptPay QR
+```
+
+
+## The Relationship
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│           STRATEGY PATTERN vs DEPENDENCY INJECTION                  │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────┐      ┌─────────────────────────┐
+│   STRATEGY PATTERN      │      │  DEPENDENCY INJECTION   │
+├─────────────────────────┤      ├─────────────────────────┤
+│                         │      │                         │
+│  WHAT: A behavioral     │      │  HOW: A technique for   │
+│  pattern for swapping   │      │  providing dependencies │
+│  algorithms             │      │  to objects             │
+│                         │      │                         │
+└───────────┬─────────────┘      └─────────────┬───────────┘
+            │                                  │
+            │         ┌───────────┐            │
+            └────────▶│  OVERLAP  │◀───────────┘
+                      ├───────────┤
+                      │           │
+                      │ Strategy  │
+                      │ Pattern   │
+                      │ USES DI   │
+                      │ to inject │
+                      │ algorithms│
+                      │           │
+                      └───────────┘
+
+  Strategy Pattern = WHAT to inject (algorithm/behavior)
+  Dependency Injection = HOW to inject (mechanism)
+```
+
+
+## Key Insight
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Without DI (tight coupling):                                   │
+│  ─────────────────────────────                                  │
+│                                                                 │
+│  class Context:                                                 │
+│      def __init__(self):                                        │
+│          self._strategy = ConcreteStrategyA()  # ❌ Hardcoded!  │
+│                                                                 │
+│  • Context controls WHICH strategy                              │
+│  • Cannot change without modifying Context                      │
+│  • Hard to test                                                 │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│  With DI (loose coupling):                                      │
+│  ─────────────────────────                                      │
+│                                                                 │
+│  class Context:                                                 │
+│      def __init__(self, strategy: Strategy):                    │
+│          self._strategy = strategy  # ✅ Injected from outside  │
+│                                                                 │
+│  • Client controls WHICH strategy                               │
+│  • Context only depends on interface                            │
+│  • Easy to test with mock strategies                            │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```

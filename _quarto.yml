@@ -28,6 +28,8 @@ book:
          href: "contents/pattern/factory-method.qmd"
        - text: Strategy Pattern
          href: "contents/pattern/Strategy-Pattern.qmd"
+       - text: Strategy with DI
+         href: "contents/pattern/Strategy-with-DI.qmd"
     - part: Transport
       chapters: 
         - "contents/pattern/dto-explained.qmd"
