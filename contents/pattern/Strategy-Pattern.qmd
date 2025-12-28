@@ -1,0 +1,293 @@
+---
+title: "Strategy Design Pattern"
+---
+
+## Overview
+
+The **Strategy Pattern** is a behavioral design pattern that lets you define a family of algorithms, put each of them into a separate class, and make their objects interchangeable at runtime.
+
+
+## The Problem It Solves
+
+Imagine you have multiple ways to do the same task (e.g., different image compression algorithms, different sorting methods, different payment methods). Without Strategy pattern, you'd end up with lots of `if-else` statements:
+
+```python
+# ❌ Without Strategy Pattern - messy and hard to extend
+def process_image(image, algorithm_type):
+    if algorithm_type == "jpeg":
+        # 50 lines of JPEG compression
+        pass
+    elif algorithm_type == "png":
+        # 50 lines of PNG compression
+        pass
+    elif algorithm_type == "webp":
+        # 50 lines of WebP compression
+        pass
+    # Adding new algorithm = modifying this function!
+```
+
+
+## Pattern Structure (From Your Diagram)
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        STRATEGY PATTERN                             │
+└─────────────────────────────────────────────────────────────────────┘
+
+  ┌──────────────────────┐         ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
+  │      Context         │            <<interface>>        
+  ├──────────────────────┤ ◇──────▶│     Strategy          │
+  │ - strategy           │         ├ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┤
+  ├──────────────────────┤         │ + execute(data)       │
+  │ + setStrategy()      │          ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ 
+  │ + doSomething()      │                   △
+  └──────────────────────┘                   │
+           │                                 │
+           │                    ┌────────────┴────────────┐
+           │                    │                         │
+           ▼             ┌──────┴───────┐         ┌───────┴──────┐
+   strategy.execute()    │ ConcreteA    │         │ ConcreteB    │
+                         ├──────────────┤         ├──────────────┤
+                         │ + execute()  │         │ + execute()  │
+                         └──────────────┘         └──────────────┘
+
+  ◇────▶  = "has-a" (composition)
+    △
+    │     = "implements" (inheritance)
+```
+
+
+### Key Components:
+
+| # | Component | Role |
+|---|-----------|------|
+| 1 | **Context** | Maintains reference to a strategy; delegates work to it |
+| 2 | **Strategy (Interface)** | Common interface for all algorithms |
+| 3 | **ConcreteStrategies** | Actual algorithm implementations |
+| 4 | **Client** | Creates strategy objects and passes to context |
+| 5 | **Usage Code** | Shows runtime swapping of strategies |
+
+
+## Python Example: Medical Image Compression
+
+Here's a practical example relevant to radiology:
+
+```python
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+
+
+# ═══════════════════════════════════════════════════════════════
+# 2. STRATEGY INTERFACE
+# ═══════════════════════════════════════════════════════════════
+class CompressionStrategy(ABC):
+    """Abstract base class defining the strategy interface."""
+    
+    @abstractmethod
+    def compress(self, image_data: bytes) -> bytes:
+        """Compress the image data."""
+        pass
+    
+    @abstractmethod
+    def get_name(self) -> str:
+        """Return strategy name."""
+        pass
+
+
+# ═══════════════════════════════════════════════════════════════
+# 3. CONCRETE STRATEGIES
+# ═══════════════════════════════════════════════════════════════
+class LosslessCompression(CompressionStrategy):
+    """For diagnostic images - no quality loss."""
+    
+    def compress(self, image_data: bytes) -> bytes:
+        print("  → Applying LOSSLESS compression (PNG-like)")
+        print("    Preserving all pixel data for diagnosis")
+        # Simulated compression
+        return b"LOSSLESS:" + image_data
+    
+    def get_name(self) -> str:
+        return "Lossless (Diagnostic Quality)"
+
+
+class LossyCompression(CompressionStrategy):
+    """For previews/thumbnails - smaller size."""
+    
+    def __init__(self, quality: int = 80):
+        self.quality = quality
+    
+    def compress(self, image_data: bytes) -> bytes:
+        print(f"  → Applying LOSSY compression (quality={self.quality}%)")
+        print("    Reducing size for quick preview")
+        return f"LOSSY_{self.quality}:".encode() + image_data[:len(image_data)//2]
+    
+    def get_name(self) -> str:
+        return f"Lossy (Quality: {self.quality}%)"
+
+
+class DICOMCompression(CompressionStrategy):
+    """DICOM-specific compression preserving metadata."""
+    
+    def compress(self, image_data: bytes) -> bytes:
+        print("  → Applying DICOM compression")
+        print("    Preserving DICOM headers and metadata")
+        return b"DICOM:" + image_data
+    
+    def get_name(self) -> str:
+        return "DICOM Standard"
+
+
+# ═══════════════════════════════════════════════════════════════
+# 1. CONTEXT
+# ═══════════════════════════════════════════════════════════════
+class ImageProcessor:
+    """Context class that uses a compression strategy."""
+    
+    def __init__(self):
+        self._strategy: CompressionStrategy | None = None
+    
+    def set_strategy(self, strategy: CompressionStrategy) -> None:
+        """Set the compression strategy at runtime."""
+        self._strategy = strategy
+        print(f"\n📋 Strategy set to: {strategy.get_name()}")
+    
+    def process_image(self, image_data: bytes) -> bytes:
+        """Process image using the current strategy."""
+        if self._strategy is None:
+            raise ValueError("No compression strategy set!")
+        
+        print(f"🖼️  Processing image ({len(image_data)} bytes)...")
+        result = self._strategy.compress(image_data)
+        print(f"✅ Done! Output: {len(result)} bytes\n")
+        return result
+
+
+# ═══════════════════════════════════════════════════════════════
+# 4 & 5. CLIENT CODE
+# ═══════════════════════════════════════════════════════════════
+def main():
+    # Sample image data
+    ct_scan_data = b"RAW_CT_SCAN_PIXEL_DATA_HERE..." * 100
+    
+    # Create the context
+    processor = ImageProcessor()
+    
+    # Scenario 1: Archiving for PACS - use lossless
+    print("=" * 50)
+    print("SCENARIO 1: Archiving CT scan to PACS")
+    print("=" * 50)
+    
+    lossless = LosslessCompression()          # Create strategy
+    processor.set_strategy(lossless)           # Set strategy
+    archived = processor.process_image(ct_scan_data)  # Execute
+    
+    # Scenario 2: Creating thumbnail preview - use lossy
+    print("=" * 50)
+    print("SCENARIO 2: Creating thumbnail for web viewer")
+    print("=" * 50)
+    
+    lossy = LossyCompression(quality=60)       # Create different strategy
+    processor.set_strategy(lossy)              # Swap strategy at runtime!
+    thumbnail = processor.process_image(ct_scan_data)
+    
+    # Scenario 3: Export for another hospital - use DICOM
+    print("=" * 50)
+    print("SCENARIO 3: Exporting for external consultation")
+    print("=" * 50)
+    
+    dicom = DICOMCompression()
+    processor.set_strategy(dicom)
+    exported = processor.process_image(ct_scan_data)
+
+
+if __name__ == "__main__":
+    main()
+```
+
+
+## Output
+
+```
+==================================================
+SCENARIO 1: Archiving CT scan to PACS
+==================================================
+
+📋 Strategy set to: Lossless (Diagnostic Quality)
+🖼️  Processing image (3100 bytes)...
+  → Applying LOSSLESS compression (PNG-like)
+    Preserving all pixel data for diagnosis
+✅ Done! Output: 3109 bytes
+
+==================================================
+SCENARIO 2: Creating thumbnail for web viewer
+==================================================
+
+📋 Strategy set to: Lossy (Quality: 60%)
+🖼️  Processing image (3100 bytes)...
+  → Applying LOSSY compression (quality=60%)
+    Reducing size for quick preview
+✅ Done! Output: 1558 bytes
+
+==================================================
+SCENARIO 3: Exporting for external consultation
+==================================================
+
+📋 Strategy set to: DICOM Standard
+🖼️  Processing image (3100 bytes)...
+  → Applying DICOM compression
+    Preserving DICOM headers and metadata
+✅ Done! Output: 3106 bytes
+```
+
+
+## Key Benefits
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                     WHY USE STRATEGY?                          │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│  1. OPEN/CLOSED PRINCIPLE                                      │
+│     ─────────────────────                                      │
+│     Add new algorithms WITHOUT modifying existing code         │
+│                                                                │
+│     # Just create a new class:                                 │
+│     class AIEnhancedCompression(CompressionStrategy):          │
+│         def compress(self, data): ...                          │
+│                                                                │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│  2. RUNTIME FLEXIBILITY                                        │
+│     ───────────────────                                        │
+│     Switch algorithms on-the-fly based on conditions           │
+│                                                                │
+│     if image.is_diagnostic:                                    │
+│         processor.set_strategy(LosslessCompression())          │
+│     else:                                                      │
+│         processor.set_strategy(LossyCompression(50))           │
+│                                                                │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│  3. ELIMINATES CONDITIONALS                                    │
+│     ───────────────────────                                    │
+│     No more giant if-elif-else chains                          │
+│                                                                │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│  4. EASIER TESTING                                             │
+│     ──────────────                                             │
+│     Test each strategy in isolation                            │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+```
+
+
+## When to Use Strategy Pattern
+
+| ✅ Use When | ❌ Avoid When |
+|------------|--------------|
+| Multiple algorithms for same task | Only 1-2 simple algorithms |
+| Need runtime algorithm switching | Algorithm never changes |
+| Algorithms change independently | Algorithms are trivially simple |
+| Want to avoid conditionals | Overhead not justified |
+
